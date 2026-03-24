@@ -30,6 +30,15 @@ pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
             if let Some(day) = current_day.as_mut() {
                 day.entries.push(entry);
             }
+            continue;
+        }
+
+        if let Some(note) = parse_note_line(line) {
+            if let Some(day) = current_day.as_mut() {
+                if let Some(entry) = day.entries.last_mut() {
+                    entry.notes.push(note.to_string());
+                }
+            }
         }
     }
 
@@ -72,7 +81,16 @@ pub(crate) fn parse_entry_line(line: &str) -> Option<Entry> {
         time: time.to_string(),
         summary: summary.to_string(),
         state,
+        notes: Vec::new(),
     })
+}
+
+pub(crate) fn parse_note_line(line: &str) -> Option<&str> {
+    let note = line.strip_prefix("  - ")?;
+    if note.is_empty() {
+        return None;
+    }
+    Some(note)
 }
 
 fn is_date_like(value: &str) -> bool {

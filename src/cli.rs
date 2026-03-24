@@ -36,6 +36,11 @@ pub enum Commands {
         #[arg(help = "The item text to start now. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
     },
+    #[command(about = "Add a note under the current or latest open item")]
+    Note {
+        #[arg(help = "The note text to add. If omitted, wid prompts for one line of input.")]
+        text: Vec<String>,
+    },
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -47,6 +52,7 @@ pub fn run() -> anyhow::Result<()> {
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
         Some(Commands::Rm { interactive }) => commands::rm::run(interactive),
         Some(Commands::Now { text }) => commands::now::run(text),
+        Some(Commands::Note { text }) => commands::note::run(text),
         None => commands::show::run(),
     }
 }

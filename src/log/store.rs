@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context, Result};
 
 use super::format::{format_day_section, format_entry, format_log};
 use super::model::{DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, UnfinishedEntry};
-use super::parser::{parse_day_heading, parse_entry_line, parse_log};
+use super::parser::{parse_day_heading, parse_entry_line, parse_log, parse_note_line};
 use super::paths::default_log_path;
 
 pub fn load_log() -> Result<LogDocument> {
@@ -67,6 +67,7 @@ pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> R
         time: time.to_string(),
         summary: summary.to_string(),
         state: EntryState::Active,
+        notes: Vec::new(),
     };
     append_log_entry_to_path(path, date, &entry)
 }
@@ -76,6 +77,7 @@ pub fn append_pending_entry(path: &Path, date: &str, time: &str, summary: &str) 
         time: time.to_string(),
         summary: summary.to_string(),
         state: EntryState::Pending,
+        notes: Vec::new(),
     };
     append_log_entry_to_path_without_demoting_active(path, date, &entry)
 }
@@ -181,6 +183,29 @@ pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
 
     let demoted = demote_active_entries_in_contents(&contents);
     replace_entry_state_with_contents(path, &demoted, fresh_target.start, fresh_target.end, EntryState::Active)
+}
+
+pub fn append_note_to_latest_open_entry(path: &Path, note: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let Some(target) = collect_note_targets_from_contents(&contents) else {
+        return Err(anyhow!("no note target found"));
+    };
+
+    let line_ending = newline_ending(&contents);
+    let mut updated = String::with_capacity(contents.len() + note.len() + 8);
+    updated.push_str(&contents[..target.insert_at]);
+    updated.push_str("  - ");
+    updated.push_str(note);
+    updated.push_str(line_ending);
+    updated.push_str(&contents[target.insert_at..]);
+
+    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    Ok(())
 }
 
 fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
@@ -302,6 +327,61 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
     }
 
     entries
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NoteTarget {
+    state: EntryState,
+    insert_at: usize,
+}
+
+fn collect_note_targets_from_contents(contents: &str) -> Option<NoteTarget> {
+    let mut line_start = 0;
+    let mut current_date: Option<String> = None;
+    let mut current_target: Option<NoteTarget> = None;
+    let mut active_target: Option<NoteTarget> = None;
+    let mut last_pending_target: Option<NoteTarget> = None;
+
+    for segment in contents.split_inclusive('\n') {
+        let line_end = line_start + segment.len();
+        let line = segment.trim_end();
+
+        if let Some(date) = parse_day_heading(line) {
+            current_date = Some(date.to_string());
+            current_target = None;
+        } else if line.starts_with("## ") {
+            current_date = None;
+            current_target = None;
+        } else if current_date.is_some() {
+            if let Some(entry) = parse_entry_line(line) {
+                let target = NoteTarget {
+                    state: entry.state,
+                    insert_at: line_end,
+                };
+                current_target = Some(target);
+                if entry.state.is_active() {
+                    active_target = Some(target);
+                } else if entry.state.is_pending() {
+                    last_pending_target = Some(target);
+                }
+            } else if parse_note_line(line).is_some() {
+                if let Some(target) = current_target.as_mut() {
+                    target.insert_at = line_end;
+                    if target.state.is_active() {
+                        active_target = Some(*target);
+                    } else if target.state.is_pending() {
+                        last_pending_target = Some(*target);
+                    }
+                }
+            } else {
+                current_target = None;
+            }
+        }
+
+        line_start = line_end;
+    }
+
+    active_target.or(last_pending_target)
 }
 
 fn mark_entry_done_with_contents(path: &Path, contents: &str, start: usize, end: usize) -> Result<()> {

@@ -33,6 +33,7 @@ pub struct Entry {
     pub time: String,
     pub summary: String,
     pub state: EntryState,
+    pub notes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

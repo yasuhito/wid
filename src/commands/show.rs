@@ -32,6 +32,11 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
         for entry in &day.entries {
             output.push_str(&render_entry_line(entry.state, &entry.time, &entry.summary, colorize));
             output.push('\n');
+            for note in &entry.notes {
+                output.push_str("  - ");
+                output.push_str(note);
+                output.push('\n');
+            }
         }
     }
 

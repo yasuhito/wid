@@ -95,7 +95,7 @@ fn wid_omits_empty_day_sections_from_output() {
 #[test]
 fn render_document_with_color_highlights_active_and_done_entries() {
     let document = parser::parse_log(
-        "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 active\n- [x] 12:10 done\n- [ ] 12:30 pending\n",
+        "## 2026-03-24\n\n- [>] 11:32 active\n  - first note\n- [x] 12:10 done\n- [ ] 12:30 pending\n",
     )
     .unwrap();
 
@@ -103,5 +103,6 @@ fn render_document_with_color_highlights_active_and_done_entries() {
 
     assert!(output.contains("\u{1b}["), "{output:?}");
     assert!(output.contains("11:32 active"), "{output:?}");
+    assert!(output.contains("  - first note"), "{output:?}");
     assert!(output.contains("12:10 done"), "{output:?}");
 }

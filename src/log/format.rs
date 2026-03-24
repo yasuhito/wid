@@ -19,6 +19,11 @@ pub fn format_day_section(day: &DaySection) -> String {
     for entry in &day.entries {
         output.push_str(&format_entry(entry));
         output.push('\n');
+        for note in &entry.notes {
+            output.push_str("  - ");
+            output.push_str(note);
+            output.push('\n');
+        }
     }
 
     output
