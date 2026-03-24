@@ -26,9 +26,9 @@ pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
             continue;
         }
 
-        if let Some((time, summary)) = parse_entry_line(line) {
+        if let Some(entry) = parse_entry_line(line) {
             if let Some(day) = current_day.as_mut() {
-                day.entries.push(Entry { time, summary });
+                day.entries.push(entry);
             }
         }
     }
@@ -49,8 +49,14 @@ pub(crate) fn parse_day_heading(line: &str) -> Option<&str> {
     }
 }
 
-pub(crate) fn parse_entry_line(line: &str) -> Option<(String, String)> {
-    let rest = line.strip_prefix("- ")?;
+pub(crate) fn parse_entry_line(line: &str) -> Option<Entry> {
+    let (done, rest) = if let Some(rest) = line.strip_prefix("- [ ] ") {
+        (false, rest)
+    } else if let Some(rest) = line.strip_prefix("- [x] ") {
+        (true, rest)
+    } else {
+        return None;
+    };
     let (time, summary) = rest.split_once(' ')?;
     if !is_time_like(time) {
         return None;
@@ -60,7 +66,11 @@ pub(crate) fn parse_entry_line(line: &str) -> Option<(String, String)> {
         return None;
     }
 
-    Some((time.to_string(), summary.to_string()))
+    Some(Entry {
+        time: time.to_string(),
+        summary: summary.to_string(),
+        done,
+    })
 }
 
 fn is_date_like(value: &str) -> bool {

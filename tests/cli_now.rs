@@ -113,7 +113,7 @@ fn append_log_entry_creates_new_file_with_header_today_section_and_entry() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n"
     );
 }
 
@@ -124,7 +124,7 @@ fn append_log_entry_reuses_existing_same_day_section() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n",
     )
     .unwrap();
 
@@ -132,7 +132,7 @@ fn append_log_entry_reuses_existing_same_day_section() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n- 12:10 実装方針を見直した\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [ ] 12:10 実装方針を見直した\n"
     );
 }
 
@@ -143,7 +143,7 @@ fn append_log_entry_reuses_matching_section_even_when_it_is_not_last() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n\n## 2026-03-25\n\n- 09:00 別件を開始\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n",
     )
     .unwrap();
 
@@ -151,7 +151,7 @@ fn append_log_entry_reuses_matching_section_even_when_it_is_not_last() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n- 12:10 実装方針を見直した\n\n## 2026-03-25\n\n- 09:00 別件を開始\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [ ] 12:10 実装方針を見直した\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n"
     );
 }
 
@@ -162,7 +162,7 @@ fn append_log_entry_preserves_unrelated_text_around_matching_section() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\nintro note\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n\nmisc note\n\n## 2026-03-25\n\n- 09:00 別件を開始\n\ntrailing note\n",
+        "# wid log\n\nintro note\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n\nmisc note\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n\ntrailing note\n",
     )
     .unwrap();
 
@@ -170,7 +170,7 @@ fn append_log_entry_preserves_unrelated_text_around_matching_section() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\nintro note\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n\nmisc note\n- 12:10 実装方針を見直した\n\n## 2026-03-25\n\n- 09:00 別件を開始\n\ntrailing note\n"
+        "# wid log\n\nintro note\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n\nmisc note\n- [ ] 12:10 実装方針を見直した\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n\ntrailing note\n"
     );
 }
 
@@ -181,7 +181,7 @@ fn append_log_entry_reuses_heading_with_crlf_and_trailing_spaces() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\r\n\r\n## 2026-03-24   \r\n\r\n- 11:32 CI が落ちていたので修正\r\n\r\n## 2026-03-25\r\n\r\n- 09:00 別件を開始\r\n",
+        "# wid log\r\n\r\n## 2026-03-24   \r\n\r\n- [ ] 11:32 CI が落ちていたので修正\r\n\r\n## 2026-03-25\r\n\r\n- [ ] 09:00 別件を開始\r\n",
     )
     .unwrap();
 
@@ -189,7 +189,7 @@ fn append_log_entry_reuses_heading_with_crlf_and_trailing_spaces() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\r\n\r\n## 2026-03-24   \r\n\r\n- 11:32 CI が落ちていたので修正\r\n- 12:10 実装方針を見直した\r\n\r\n## 2026-03-25\r\n\r\n- 09:00 別件を開始\r\n"
+        "# wid log\r\n\r\n## 2026-03-24   \r\n\r\n- [ ] 11:32 CI が落ちていたので修正\r\n- [ ] 12:10 実装方針を見直した\r\n\r\n## 2026-03-25\r\n\r\n- [ ] 09:00 別件を開始\r\n"
     );
 }
 
@@ -200,7 +200,7 @@ fn append_log_entry_inserts_newline_before_appending_at_eof_without_trailing_new
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正",
     )
     .unwrap();
 
@@ -208,6 +208,6 @@ fn append_log_entry_inserts_newline_before_appending_at_eof_without_trailing_new
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n- 12:10 実装方針を見直した\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [ ] 12:10 実装方針を見直した\n"
     );
 }

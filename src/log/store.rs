@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
 
-use super::format::{format_day_section, format_log};
+use super::format::{format_day_section, format_entry, format_log};
 use super::model::{DaySection, Entry, LogDocument, LogEntry, UnfinishedEntry};
 use super::parser::{parse_day_heading, parse_entry_line, parse_log};
 use super::paths::default_log_path;
@@ -54,6 +54,7 @@ pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> R
     let entry = Entry {
         time: time.to_string(),
         summary: summary.to_string(),
+        done: false,
     };
     append_log_entry_to_path(path, date, &entry)
 }
@@ -149,12 +150,12 @@ fn collect_unfinished_entries_from_contents(contents: &str) -> Vec<UnfinishedEnt
         } else if line.starts_with("## ") {
             current_date = None;
         } else if let Some(date) = current_date.as_ref() {
-            if !is_done_entry_line(line) {
-                if let Some((time, summary)) = parse_entry_line(line) {
+            if let Some(entry) = parse_entry_line(line) {
+                if !entry.done {
                     entries.push(UnfinishedEntry {
                         date: date.clone(),
-                        time,
-                        summary,
+                        time: entry.time,
+                        summary: entry.summary,
                         ordinal: entries.len(),
                         start: line_start,
                         end: line_end,
@@ -183,11 +184,11 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
         } else if line.starts_with("## ") {
             current_date = None;
         } else if let Some(date) = current_date.as_ref() {
-            if let Some((time, summary)) = parse_entry_line(line) {
+            if let Some(entry) = parse_entry_line(line) {
                 entries.push(LogEntry {
                     date: date.clone(),
-                    time,
-                    summary,
+                    time: entry.time,
+                    summary: entry.summary,
                     ordinal: entries.len(),
                     start: line_start,
                     end: line_end,
@@ -212,8 +213,8 @@ fn mark_unfinished_entry_done_with_contents(
     let segment = &contents[target.start..target.end];
     let body = segment.trim_end_matches(['\r', '\n']);
     let ending = &segment[body.len()..];
-    updated.push_str(body);
-    updated.push_str(&format!(" @done({timestamp})"));
+    let updated_body = body.replacen("[ ]", "[x]", 1);
+    updated.push_str(&updated_body);
     updated.push_str(ending);
     updated.push_str(&contents[target.end..]);
 
@@ -272,7 +273,7 @@ fn append_to_existing_log(path: &Path, contents: &str, date: &str, entry: &Entry
         if needs_separator {
             updated.push_str(line_ending);
         }
-        updated.push_str(&format!("- {} {}{}", entry.time, entry.summary, line_ending));
+        updated.push_str(&format!("{}{}", format_entry(entry), line_ending));
         updated.push_str(&contents[insertion_point..]);
         fs::write(path, updated)
             .with_context(|| format!("failed to write log at {}", path.display()))?;
@@ -341,27 +342,6 @@ fn newline_ending(contents: &str) -> &str {
     } else {
         "\n"
     }
-}
-
-fn is_done_entry_line(line: &str) -> bool {
-    let Some(rest) = line.strip_suffix(')') else {
-        return false;
-    };
-    let Some((_, timestamp)) = rest.rsplit_once(" @done(") else {
-        return false;
-    };
-
-    let bytes = timestamp.as_bytes();
-    bytes.len() == 16
-        && bytes[0..4].iter().all(u8::is_ascii_digit)
-        && bytes[4] == b'-'
-        && bytes[5..7].iter().all(u8::is_ascii_digit)
-        && bytes[7] == b'-'
-        && bytes[8..10].iter().all(u8::is_ascii_digit)
-        && bytes[10] == b' '
-        && bytes[11..13].iter().all(u8::is_ascii_digit)
-        && bytes[13] == b':'
-        && bytes[14..16].iter().all(u8::is_ascii_digit)
 }
 
 #[cfg(test)]

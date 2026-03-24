@@ -32,7 +32,7 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
     fs::create_dir_all(log_path.parent().unwrap()).unwrap();
     fs::write(
         &log_path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n- 12:10 実装方針を見直した\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n",
     )
     .unwrap();
 
@@ -41,7 +41,7 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 CI が落ちていたので修正\n- 12:10 実装方針を見直した\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n"
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }

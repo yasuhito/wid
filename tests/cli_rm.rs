@@ -87,7 +87,7 @@ fn rm_interactive_lists_all_entries_in_wid_order() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n- 12:10 already done @done(2026-03-24 12:11)\n\n## 2026-03-25\n\n- 09:15 newest item\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 12:10 already done\n\n## 2026-03-25\n\n- [ ] 09:15 newest item\n",
     )
     .unwrap();
 
@@ -106,21 +106,18 @@ fn rm_interactive_lists_all_entries_in_wid_order() {
 }
 
 #[test]
-fn rm_interactive_keeps_non_timestamp_done_markers_visible() {
+fn rm_interactive_keeps_completed_entries_visible() {
     let dir = unique_temp_dir("rm-non-timestamp-done-marker");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-25\n\n- 09:15 investigate @done(tbd)\n",
+        "# wid log\n\n## 2026-03-25\n\n- [x] 09:15 investigate\n",
     )
     .unwrap();
 
     let entries = store::collect_entries(&path).unwrap();
-    assert_eq!(
-        entries[0].display_label(),
-        "2026-03-25 09:15 investigate @done(tbd)"
-    );
+    assert_eq!(entries[0].display_label(), "2026-03-25 09:15 investigate");
 }
 
 #[test]
@@ -130,7 +127,7 @@ fn rm_command_interactive_deletes_selected_entry_after_confirmation() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n- 11:48 already done @done(2026-03-24 11:50)\n\n## 2026-03-25\n\n- 09:15 selected item\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n\n## 2026-03-25\n\n- [ ] 09:15 selected item\n",
     )
     .unwrap();
 
@@ -140,7 +137,7 @@ fn rm_command_interactive_deletes_selected_entry_after_confirmation() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n- 11:48 already done @done(2026-03-24 11:50)\n\n## 2026-03-25\n\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n\n## 2026-03-25\n\n"
     );
 }
 
@@ -151,7 +148,7 @@ fn rm_command_interactive_does_not_delete_when_confirmation_is_not_yes() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 only item\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 only item\n",
     )
     .unwrap();
 
@@ -170,14 +167,14 @@ fn rm_store_rejects_stale_entry_targets() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 selected item\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 selected item\n",
     )
     .unwrap();
 
     let target = store::collect_entries(&path).unwrap().pop().unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- 11:32 selected item (renamed)\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 selected item (renamed)\n",
     )
     .unwrap();
 

@@ -5,7 +5,8 @@ pub fn format_log_header() -> &'static str {
 }
 
 pub fn format_entry(entry: &Entry) -> String {
-    format!("- {} {}", entry.time, entry.summary)
+    let checkbox = if entry.done { "[x]" } else { "[ ]" };
+    format!("- {checkbox} {} {}", entry.time, entry.summary)
 }
 
 pub fn format_day_heading(date: &str) -> String {
