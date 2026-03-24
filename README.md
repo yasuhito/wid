@@ -12,6 +12,7 @@ wid done
 wid done -i
 wid edit
 wid edit -i
+wid focus
 wid focus -i
 wid note some note
 wid note
@@ -27,6 +28,7 @@ wid now
 `wid done -i` lets you choose which unfinished entry to mark as done.
 `wid edit` edits the active entry, or the latest entry when nothing is active.
 `wid edit -i` lets you choose which entry summary to edit.
+`wid focus` focuses the latest entry unless it is already done.
 `wid focus -i` lets you choose which pending entry becomes the active one.
 `wid note some note` appends a note under the active entry, or the last pending entry when nothing is active.
 `wid note` prompts for a one-line note on standard input.

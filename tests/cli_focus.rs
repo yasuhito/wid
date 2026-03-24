@@ -149,6 +149,64 @@ fn focus_interactive_updates_checkbox_not_summary_marker() {
     );
 }
 
+#[test]
+fn focus_defaults_to_latest_entry_and_clears_previous_active() {
+    let dir = unique_temp_dir("focus-default-latest");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 current task\n- [ ] 11:48 latest task\n",
+    )
+    .unwrap();
+
+    focus_command::run_at_path(&path, false).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 current task\n- [>] 11:48 latest task\n"
+    );
+}
+
+#[test]
+fn focus_defaults_is_noop_when_latest_entry_is_already_active() {
+    let dir = unique_temp_dir("focus-default-active");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first task\n- [>] 11:48 latest task\n").unwrap();
+
+    focus_command::run_at_path(&path, false).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first task\n- [>] 11:48 latest task\n"
+    );
+}
+
+#[test]
+fn focus_defaults_errors_when_latest_entry_is_done() {
+    let dir = unique_temp_dir("focus-default-done");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first task\n- [x] 11:48 latest task\n").unwrap();
+
+    let error = focus_command::run_at_path(&path, false).unwrap_err();
+
+    assert!(format!("{error:#}").contains("done"), "{error:#}");
+}
+
+#[test]
+fn focus_defaults_errors_when_no_entry_exists() {
+    let dir = unique_temp_dir("focus-default-empty");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "## 2026-03-24\n\n").unwrap();
+
+    let error = focus_command::run_at_path(&path, false).unwrap_err();
+
+    assert!(format!("{error:#}").contains("entry"), "{error:#}");
+}
+
 struct FakePicker {
     result: Option<usize>,
     items: Vec<String>,

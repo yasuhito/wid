@@ -5,13 +5,17 @@ use crate::interactive::done_picker::{Picker, TerminalPicker};
 use crate::log::{paths::default_log_path, store};
 
 pub fn run(interactive: bool) -> Result<()> {
+    let path = default_log_path()?;
+    run_at_path(&path, interactive)
+}
+
+pub fn run_at_path(path: &Path, interactive: bool) -> Result<()> {
     if !interactive {
-        return Err(anyhow!("focus requires -i"));
+        return store::focus_latest_entry(path);
     }
 
-    let path = default_log_path()?;
     let mut picker = TerminalPicker;
-    run_interactive_at_path(&path, &mut picker)
+    run_interactive_at_path(path, &mut picker)
 }
 
 pub fn run_interactive_at_path(path: &Path, picker: &mut impl Picker) -> Result<()> {

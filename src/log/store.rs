@@ -206,6 +206,29 @@ pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     replace_entry_state_with_contents(path, &demoted, fresh_target.start, fresh_target.end, EntryState::Active)
 }
 
+pub fn focus_latest_entry(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let Some(target) = collect_entries_from_contents(&contents).last().cloned() else {
+        return Err(anyhow!("no entry found"));
+    };
+
+    if target.state.is_done() {
+        return Err(anyhow!("latest entry is already done"));
+    }
+
+    if target.state.is_active() {
+        return Ok(());
+    }
+
+    let demoted = demote_active_entries_in_contents(&contents);
+    replace_entry_state_with_contents(path, &demoted, target.start, target.end, EntryState::Active)
+}
+
 pub fn append_note_to_latest_open_entry(path: &Path, note: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
