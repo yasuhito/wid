@@ -1,10 +1,16 @@
-use std::io::{self, Write};
+use std::io;
 
 use anyhow::Result;
 use crossterm::cursor;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{self, Clear, ClearType};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::backend::CrosstermBackend;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Widget};
+use ratatui::{Frame, Terminal};
 
 use crate::log::model::PickerItem;
 
@@ -64,26 +70,59 @@ impl Picker for TerminalPicker {
         }
 
         terminal::enable_raw_mode()?;
-        let _guard = RawModeGuard;
-        let mut state = PickerState::new(entries.len());
         let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
+        let _guard = TerminalGuard;
+
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+        let mut state = PickerState::new(entries.len());
 
         loop {
-            render(&mut stdout, entries, state.selected())?;
-            stdout.flush()?;
+            terminal.draw(|frame| render_frame(frame, entries, state.selected(), PickerMode::Browse))?;
 
             if let Event::Key(key) = event::read()? {
                 match state.handle_key(key) {
                     PickerOutcome::Continue => {}
-                    PickerOutcome::Confirmed(index) => {
-                        write_crlf(&mut stdout)?;
-                        stdout.flush()?;
-                        return Ok(Some(index));
-                    }
-                    PickerOutcome::Cancelled => {
-                        write_crlf(&mut stdout)?;
-                        stdout.flush()?;
-                        return Ok(None);
+                    PickerOutcome::Confirmed(index) => return Ok(Some(index)),
+                    PickerOutcome::Cancelled => return Ok(None),
+                }
+            }
+        }
+    }
+}
+
+impl TerminalPicker {
+    pub fn pick_for_delete<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
+        if entries.is_empty() {
+            return Ok(None);
+        }
+
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
+        let _guard = TerminalGuard;
+
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+        let mut state = PickerState::new(entries.len());
+        let mut mode = PickerMode::Browse;
+
+        loop {
+            terminal.draw(|frame| render_frame(frame, entries, state.selected(), mode))?;
+
+            if let Event::Key(key) = event::read()? {
+                match mode {
+                    PickerMode::Browse => match state.handle_key(key) {
+                        PickerOutcome::Continue => {}
+                        PickerOutcome::Confirmed(_) => mode = PickerMode::ConfirmDelete,
+                        PickerOutcome::Cancelled => return Ok(None),
+                    },
+                    PickerMode::ConfirmDelete => {
+                        if confirm_delete_key(key) {
+                            return Ok(Some(state.selected()));
+                        }
+                        mode = PickerMode::Browse;
                     }
                 }
             }
@@ -91,36 +130,151 @@ impl Picker for TerminalPicker {
     }
 }
 
-fn render<T: PickerItem>(stdout: &mut impl Write, entries: &[T], selected: usize) -> Result<()> {
-    execute!(stdout, Clear(ClearType::All), cursor::MoveTo(0, 0))?;
-    write_line(stdout, "Select an entry:")?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PickerMode {
+    Browse,
+    ConfirmDelete,
+}
 
-    for (index, entry) in entries.iter().enumerate() {
-        let prefix = if index == selected { ">" } else { " " };
-        let label = entry.display_label();
-        write_line(stdout, &format!("{prefix} {label}"))?;
+#[derive(Debug, Clone, Copy)]
+struct PickerTheme {
+    title: Style,
+    normal: Style,
+    selected: Style,
+    accent: Style,
+    footer: Style,
+}
+
+impl PickerTheme {
+    fn omarchy() -> Self {
+        Self {
+            title: Style::default().fg(Color::Rgb(160, 167, 191)),
+            normal: Style::default().fg(Color::Rgb(188, 194, 216)),
+            selected: Style::default()
+                .fg(Color::Black)
+                .bg(Color::Rgb(191, 183, 155))
+                .add_modifier(Modifier::BOLD),
+            accent: Style::default().fg(Color::Rgb(217, 48, 95)),
+            footer: Style::default().fg(Color::Rgb(132, 139, 166)),
+        }
+    }
+}
+
+fn render_frame<T: PickerItem>(frame: &mut Frame, entries: &[T], selected: usize, mode: PickerMode) {
+    let area = frame.area();
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .split(area);
+
+    let theme = PickerTheme::omarchy();
+
+    Paragraph::new("Select an entry:")
+        .style(theme.title)
+        .render(chunks[0], frame.buffer_mut());
+
+    match mode {
+        PickerMode::Browse => {
+            let body = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(1), Constraint::Length(1)])
+                .split(chunks[1]);
+            render_list(frame, body[0], entries, selected, theme);
+            Paragraph::new(footer_text(mode))
+                .style(theme.footer)
+                .render(body[1], frame.buffer_mut());
+        }
+        PickerMode::ConfirmDelete => {
+            let list_area = Rect::new(
+                chunks[1].x,
+                chunks[1].y,
+                chunks[1].width,
+                chunks[1].height.saturating_sub(1),
+            );
+            render_list(frame, list_area, entries, selected, theme);
+            render_confirmation_inline(frame, list_area, entries.len(), selected, theme);
+        }
+    }
+}
+
+fn footer_text(mode: PickerMode) -> &'static str {
+    match mode {
+        PickerMode::Browse => "j/Down next, k/Up previous, Enter confirm, q/Esc cancel",
+        PickerMode::ConfirmDelete => "Delete selected entry? [y/N]",
+    }
+}
+
+fn confirm_delete_key(key: KeyEvent) -> bool {
+    matches!(key.code, KeyCode::Char('y'))
+}
+
+fn render_list<T: PickerItem>(
+    frame: &mut Frame,
+    area: Rect,
+    entries: &[T],
+    selected: usize,
+    theme: PickerTheme,
+) {
+    let items: Vec<_> = entries
+        .iter()
+        .map(|entry| ListItem::new(Line::from(entry.display_label())).style(theme.normal))
+        .collect();
+
+    let list = List::new(items)
+        .highlight_style(theme.selected)
+        .highlight_symbol("▌ ");
+
+    let mut state = ListState::default().with_selected(Some(selected));
+    StatefulWidget::render(list, area, frame.buffer_mut(), &mut state);
+
+    if area.height == 0 {
+        return;
     }
 
-    write_crlf(stdout)?;
-    write_line(stdout, "j/Down next, k/Up previous, Enter confirm, q/Esc cancel")?;
-    Ok(())
+    let offset = state.offset();
+    let relative = selected.saturating_sub(offset) as u16;
+    if relative >= area.height {
+        return;
+    }
+
+    let accent_area = Rect::new(area.x, area.y + relative, 2, 1);
+    Paragraph::new(Span::styled("▌ ", theme.accent)).render(accent_area, frame.buffer_mut());
 }
 
-fn write_line(stdout: &mut impl Write, line: &str) -> Result<()> {
-    stdout.write_all(line.as_bytes())?;
-    write_crlf(stdout)
+fn render_confirmation_inline(
+    frame: &mut Frame,
+    area: Rect,
+    entry_count: usize,
+    selected: usize,
+    theme: PickerTheme,
+) {
+    if area.height == 0 {
+        return;
+    }
+
+    let list_height = area.height;
+    let max_offset = entry_count.saturating_sub(list_height as usize);
+    let offset = selected.min(max_offset);
+    let visible = entry_count.saturating_sub(offset).min(list_height as usize);
+    let confirm_y = area.y.saturating_add(visible as u16);
+
+    if confirm_y >= area.y.saturating_add(area.height) {
+        return;
+    }
+
+    let confirm_area = Rect::new(area.x + 2, confirm_y, area.width.saturating_sub(2), 1);
+    Paragraph::new(footer_text(PickerMode::ConfirmDelete))
+        .style(theme.footer)
+        .render(confirm_area, frame.buffer_mut());
 }
 
-fn write_crlf(stdout: &mut impl Write) -> Result<()> {
-    stdout.write_all(b"\r\n")?;
-    Ok(())
-}
+struct TerminalGuard;
 
-struct RawModeGuard;
-
-impl Drop for RawModeGuard {
+impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = terminal::disable_raw_mode();
+        let mut stdout = io::stdout();
+        let _ = execute!(stdout, LeaveAlternateScreen, cursor::Show);
     }
 }
 
@@ -130,10 +284,82 @@ fn _accept_modifier(_: KeyModifiers) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::style::Color;
+
+    #[derive(Debug, Clone)]
+    struct TestSurface {
+        rows: Vec<TestRow>,
+    }
+
+    #[derive(Debug, Clone)]
+    struct TestRow {
+        text: String,
+        fg: Color,
+        bg: Color,
+    }
+
+    fn render_test_surface<T: PickerItem>(
+        entries: &[T],
+        selected: usize,
+        mode: PickerMode,
+        _width: u16,
+        _height: u16,
+    ) -> TestSurface {
+        let theme = PickerTheme::omarchy();
+        let mut rows = Vec::with_capacity(entries.len() + 2);
+        rows.push(TestRow {
+            text: "Select an entry:".to_string(),
+            fg: theme.title.fg.unwrap_or(Color::Reset),
+            bg: theme.title.bg.unwrap_or(Color::Reset),
+        });
+        rows.extend(entries.iter().enumerate().map(|(index, entry)| {
+            let style = if index == selected {
+                theme.selected
+            } else {
+                theme.normal
+            };
+            let prefix = if index == selected { "▌ " } else { "  " };
+            TestRow {
+                text: format!("{prefix}{}", entry.display_label()),
+                fg: style.fg.unwrap_or(Color::Reset),
+                bg: style.bg.unwrap_or(Color::Reset),
+            }
+        }));
+        if mode == PickerMode::Browse {
+            rows.push(TestRow {
+                text: footer_text(mode).to_string(),
+                fg: theme.footer.fg.unwrap_or(Color::Reset),
+                bg: theme.footer.bg.unwrap_or(Color::Reset),
+            });
+        } else {
+            rows.push(TestRow {
+                text: footer_text(mode).to_string(),
+                fg: theme.footer.fg.unwrap_or(Color::Reset),
+                bg: theme.footer.bg.unwrap_or(Color::Reset),
+            });
+        }
+        TestSurface { rows }
+    }
+
+    fn surface_text(surface: &TestSurface) -> String {
+        surface
+            .rows
+            .iter()
+            .map(|row| row.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn find_cell<'a>(surface: &'a TestSurface, needle: &str) -> &'a TestRow {
+        surface
+            .rows
+            .iter()
+            .find(|row| row.text.contains(needle))
+            .expect("row not found")
+    }
 
     #[test]
-    fn render_uses_crlf_line_endings_in_raw_mode_friendly_output() {
-        let mut output = Vec::new();
+    fn ratatui_render_shows_footer_help() {
         let entries = vec![crate::log::model::UnfinishedEntry {
             date: "2026-03-24".into(),
             time: "11:32".into(),
@@ -143,11 +369,67 @@ mod tests {
             end: 0,
         }];
 
-        render(&mut output, &entries, 0).unwrap();
+        let rendered = render_test_surface(&entries, 0, PickerMode::Browse, 72, 8);
 
-        let rendered = String::from_utf8(output).unwrap();
-        assert!(rendered.contains("Select an entry:\r\n"));
-        assert!(rendered.contains("> 2026-03-24 11:32 spaced entry\r\n"));
-        assert!(rendered.contains("\r\nj/Down next, k/Up previous, Enter confirm, q/Esc cancel\r\n"));
+        assert!(surface_text(&rendered).contains("j/Down next"));
+        assert!(surface_text(&rendered).contains("Enter confirm"));
+    }
+
+    #[test]
+    fn ratatui_render_highlights_selected_row() {
+        let entries = vec![
+            crate::log::model::UnfinishedEntry {
+                date: "2026-03-24".into(),
+                time: "11:32".into(),
+                summary: "first".into(),
+                ordinal: 0,
+                start: 0,
+                end: 0,
+            },
+            crate::log::model::UnfinishedEntry {
+                date: "2026-03-25".into(),
+                time: "09:15".into(),
+                summary: "selected".into(),
+                ordinal: 1,
+                start: 0,
+                end: 0,
+            },
+        ];
+
+        let rendered = render_test_surface(&entries, 1, PickerMode::Browse, 72, 8);
+
+        let selected = find_cell(&rendered, "2026-03-25 09:15 selected");
+        assert_eq!(selected.fg, Color::Black);
+        assert!(selected.bg != Color::Reset);
+    }
+
+    #[test]
+    fn ratatui_render_keeps_selection_visible_during_delete_confirmation() {
+        let entries = vec![crate::log::model::LogEntry {
+            date: "2026-03-25".into(),
+            time: "09:15".into(),
+            summary: "selected".into(),
+            ordinal: 0,
+            start: 0,
+            end: 0,
+        }];
+
+        let rendered = render_test_surface(&entries, 0, PickerMode::ConfirmDelete, 72, 8);
+
+        assert!(surface_text(&rendered).contains("Delete selected entry? [y/N]"));
+        let confirm_index = rendered
+            .rows
+            .iter()
+            .position(|row| row.text == "Delete selected entry? [y/N]")
+            .unwrap();
+        let selected_index = rendered
+            .rows
+            .iter()
+            .position(|row| row.text.contains("2026-03-25 09:15 selected"))
+            .unwrap();
+        assert_eq!(confirm_index, selected_index + 1);
+        let selected = find_cell(&rendered, "2026-03-25 09:15 selected");
+        assert_eq!(selected.fg, Color::Black);
+        assert!(selected.bg != Color::Reset);
     }
 }
