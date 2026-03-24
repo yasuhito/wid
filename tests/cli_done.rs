@@ -254,6 +254,51 @@ fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
             "2026-03-25 09:15 newest unfinished".to_string(),
         ]
     );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
+fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
+    let dir = unique_temp_dir("done-interactive-active");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 current task\n- [ ] 11:48 pending task\n\n## 2026-03-25\n\n- [x] 09:15 done item\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
+
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-24 11:32 current task".to_string(),
+            "2026-03-24 11:48 pending task".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
+fn done_command_interactive_marks_selected_active_entry_done() {
+    let dir = unique_temp_dir("done-interactive-active-selected");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 current task\n- [ ] 11:48 pending task\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(0));
+    done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 current task\n- [ ] 11:48 pending task\n"
+    );
 }
 
 #[test]
@@ -474,6 +519,7 @@ struct FakePicker {
     result: Option<usize>,
     calls: usize,
     items: Vec<String>,
+    default_selected: Option<usize>,
 }
 
 impl FakePicker {
@@ -482,14 +528,24 @@ impl FakePicker {
             result,
             calls: 0,
             items: Vec::new(),
+            default_selected: None,
         }
     }
 }
 
 impl interactive::done_picker::Picker for FakePicker {
     fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
+        self.pick_with_selected(entries, 0)
+    }
+
+    fn pick_with_selected<T: model::PickerItem>(
+        &mut self,
+        entries: &[T],
+        selected: usize,
+    ) -> anyhow::Result<Option<usize>> {
         self.calls += 1;
         self.items = entries.iter().map(model::PickerItem::display_label).collect();
+        self.default_selected = Some(selected);
         Ok(self.result)
     }
 }

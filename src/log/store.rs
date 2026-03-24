@@ -118,6 +118,26 @@ pub fn mark_unfinished_entry_done(path: &Path, target: &UnfinishedEntry, _timest
     mark_entry_done_with_contents(path, &contents, fresh_target.start, fresh_target.end)
 }
 
+pub fn mark_focus_entry_done(path: &Path, target: &FocusEntry, _timestamp: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let fresh_target = collect_focus_entries_from_contents(&contents)
+        .into_iter()
+        .find(|entry| {
+            entry.ordinal == target.ordinal
+                && entry.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+        })
+        .ok_or_else(|| anyhow!("selected entry changed before it could be completed"))?;
+
+    mark_entry_done_with_contents(path, &contents, fresh_target.start, fresh_target.end)
+}
+
 pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)

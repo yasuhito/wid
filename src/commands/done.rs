@@ -23,17 +23,22 @@ pub fn run_interactive_at_path(
     timestamp: &str,
     picker: &mut impl Picker,
 ) -> Result<()> {
-    let entries = store::collect_unfinished_entries(path)?;
+    let entries = store::collect_focus_entries(path)?;
     if entries.is_empty() {
         return Err(anyhow!("no unfinished entry found"));
     }
 
-    let Some(index) = picker.pick(&entries)? else {
+    let default_index = entries
+        .iter()
+        .position(|entry| entry.state.is_active())
+        .unwrap_or(0);
+
+    let Some(index) = picker.pick_with_selected(&entries, default_index)? else {
         return Ok(());
     };
 
     let Some(target) = entries.get(index) else {
         return Err(anyhow!("invalid selection"));
     };
-    store::mark_unfinished_entry_done(path, target, timestamp)
+    store::mark_focus_entry_done(path, target, timestamp)
 }
