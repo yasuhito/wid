@@ -11,6 +11,9 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    Add {
+        text: Vec<String>,
+    },
     Done {
         #[arg(short = 'i', long = "interactive")]
         interactive: bool,
@@ -32,6 +35,7 @@ pub fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Some(Commands::Add { text }) => commands::add::run(text),
         Some(Commands::Done { interactive }) => commands::done::run(interactive),
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
         Some(Commands::Rm { interactive }) => commands::rm::run(interactive),

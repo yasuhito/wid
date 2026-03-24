@@ -8,15 +8,19 @@ use rustyline::DefaultEditor;
 use crate::log::{paths::default_log_path, store::append_log_entry};
 
 pub fn run(text: Vec<String>) -> Result<()> {
-    let summary = if text.is_empty() {
-        read_summary_from_stdin()?
-    } else {
-        validate_summary(text.join(" "))?
-    };
+    let summary = resolve_summary(text)?;
 
     let (date, time) = current_local_date_time()?;
     let path = default_log_path()?;
     append_log_entry(&path, &date, &time, &summary)
+}
+
+pub(crate) fn resolve_summary(text: Vec<String>) -> Result<String> {
+    if text.is_empty() {
+        read_summary_from_stdin()
+    } else {
+        validate_summary(text.join(" "))
+    }
 }
 
 fn read_summary_from_stdin() -> Result<String> {
@@ -58,7 +62,7 @@ fn validate_summary(summary: String) -> Result<String> {
     Ok(summary)
 }
 
-fn current_local_date_time() -> Result<(String, String)> {
+pub(crate) fn current_local_date_time() -> Result<(String, String)> {
     let now = Local::now();
     let formatted = now.format("%F %R").to_string();
     let (date, time) = formatted

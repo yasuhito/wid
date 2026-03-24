@@ -59,6 +59,15 @@ pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> R
     append_log_entry_to_path(path, date, &entry)
 }
 
+pub fn append_pending_entry(path: &Path, date: &str, time: &str, summary: &str) -> Result<()> {
+    let entry = Entry {
+        time: time.to_string(),
+        summary: summary.to_string(),
+        state: EntryState::Pending,
+    };
+    append_log_entry_to_path_without_demoting_active(path, date, &entry)
+}
+
 pub fn mark_last_unfinished_entry_done(path: &Path, _timestamp: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -271,6 +280,19 @@ fn append_log_entry_to_path(path: &Path, date: &str, entry: &Entry) -> Result<()
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             write_new_log(path, date, entry)
         }
+        Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+    }
+}
+
+fn append_log_entry_to_path_without_demoting_active(path: &Path, date: &str, entry: &Entry) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    match fs::read_to_string(path) {
+        Ok(contents) => append_to_existing_log(path, &contents, date, entry),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => write_new_log(path, date, entry),
         Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
     }
 }

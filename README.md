@@ -6,6 +6,8 @@
 
 ```bash
 wid
+wid add some text
+wid add
 wid done
 wid done -i
 wid focus -i
@@ -15,6 +17,8 @@ wid now
 ```
 
 `wid` prints the log.
+`wid add some text` appends a new pending entry.
+`wid add` prompts for a one-line pending entry on standard input.
 `wid done` marks the active entry as done, or the last pending entry when nothing is active.
 `wid done -i` lets you choose which unfinished entry to mark as done.
 `wid focus -i` lets you choose which pending entry becomes the active one.
