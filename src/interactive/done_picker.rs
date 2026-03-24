@@ -4,11 +4,12 @@ use anyhow::Result;
 use crossterm::cursor;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{self, Clear, ClearType};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
+use ratatui::widgets::Clear as ClearWidget;
 use ratatui::widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Widget};
 use ratatui::{Frame, Terminal};
 
@@ -71,7 +72,7 @@ impl Picker for TerminalPicker {
 
         terminal::enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
+        execute!(stdout, cursor::Hide)?;
         let _guard = TerminalGuard;
 
         let backend = CrosstermBackend::new(stdout);
@@ -100,7 +101,7 @@ impl TerminalPicker {
 
         terminal::enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
+        execute!(stdout, cursor::Hide)?;
         let _guard = TerminalGuard;
 
         let backend = CrosstermBackend::new(stdout);
@@ -161,7 +162,8 @@ impl PickerTheme {
 }
 
 fn render_frame<T: PickerItem>(frame: &mut Frame, entries: &[T], selected: usize, mode: PickerMode) {
-    let area = frame.area();
+    let area = panel_area(frame.area(), entries.len(), mode);
+    ClearWidget.render(area, frame.buffer_mut());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Min(1)])
@@ -202,6 +204,23 @@ fn footer_text(mode: PickerMode) -> &'static str {
         PickerMode::Browse => "j/Down next, k/Up previous, Enter confirm, q/Esc cancel",
         PickerMode::ConfirmDelete => "Delete selected entry? [y/N]",
     }
+}
+
+fn panel_area(area: Rect, entry_count: usize, mode: PickerMode) -> Rect {
+    let desired_rows = match mode {
+        PickerMode::Browse => entry_count.saturating_add(2),
+        PickerMode::ConfirmDelete => entry_count.saturating_add(3),
+    };
+    let panel_height = area
+        .height
+        .min(desired_rows.max(3) as u16)
+        .max(1);
+    Rect::new(
+        area.x,
+        area.y + area.height.saturating_sub(panel_height),
+        area.width,
+        panel_height,
+    )
 }
 
 fn confirm_delete_key(key: KeyEvent) -> bool {
@@ -274,7 +293,12 @@ impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = terminal::disable_raw_mode();
         let mut stdout = io::stdout();
-        let _ = execute!(stdout, LeaveAlternateScreen, cursor::Show);
+        let _ = execute!(
+            stdout,
+            cursor::MoveToColumn(0),
+            Clear(ClearType::FromCursorDown),
+            cursor::Show
+        );
     }
 }
 
@@ -303,10 +327,17 @@ mod tests {
         selected: usize,
         mode: PickerMode,
         _width: u16,
-        _height: u16,
+        height: u16,
     ) -> TestSurface {
         let theme = PickerTheme::omarchy();
-        let mut rows = Vec::with_capacity(entries.len() + 2);
+        let panel = panel_area(Rect::new(0, 0, 72, height), entries.len(), mode);
+        let top_padding = panel.y as usize;
+        let mut rows = Vec::with_capacity(top_padding + entries.len() + 3);
+        rows.extend((0..top_padding).map(|_| TestRow {
+            text: String::new(),
+            fg: Color::Reset,
+            bg: Color::Reset,
+        }));
         rows.push(TestRow {
             text: "Select an entry:".to_string(),
             fg: theme.title.fg.unwrap_or(Color::Reset),
@@ -376,6 +407,14 @@ mod tests {
     }
 
     #[test]
+    fn panel_area_is_anchored_to_bottom() {
+        let area = panel_area(Rect::new(0, 0, 72, 20), 3, PickerMode::Browse);
+
+        assert_eq!(area.height, 5);
+        assert_eq!(area.y, 15);
+    }
+
+    #[test]
     fn ratatui_render_highlights_selected_row() {
         let entries = vec![
             crate::log::model::UnfinishedEntry {
@@ -431,5 +470,27 @@ mod tests {
         let selected = find_cell(&rendered, "2026-03-25 09:15 selected");
         assert_eq!(selected.fg, Color::Black);
         assert!(selected.bg != Color::Reset);
+    }
+
+    #[test]
+    fn ratatui_render_stays_in_bottom_panel() {
+        let entries = vec![crate::log::model::UnfinishedEntry {
+            date: "2026-03-24".into(),
+            time: "11:32".into(),
+            summary: "spaced entry".into(),
+            ordinal: 0,
+            start: 0,
+            end: 0,
+        }];
+
+        let rendered = render_test_surface(&entries, 0, PickerMode::Browse, 72, 12);
+        let title_index = rendered
+            .rows
+            .iter()
+            .position(|row| row.text == "Select an entry:")
+            .unwrap();
+
+        assert!(title_index > 0);
+        assert!(rendered.rows[..title_index].iter().all(|row| row.text.is_empty()));
     }
 }
