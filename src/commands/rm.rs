@@ -54,12 +54,11 @@ pub fn run_interactive_at_path(
         return Err(anyhow!("no entries found"));
     }
 
-    let display_entries: Vec<_> = entries.into_iter().rev().collect();
-    let Some(index) = picker.pick(&display_entries)? else {
+    let Some(index) = picker.pick(&entries)? else {
         return Ok(());
     };
 
-    let Some(target) = display_entries.get(index) else {
+    let Some(target) = entries.get(index) else {
         return Err(anyhow!("invalid selection"));
     };
 

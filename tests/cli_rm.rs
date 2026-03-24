@@ -81,7 +81,7 @@ fn write_log(home: &PathBuf, contents: &str) {
 }
 
 #[test]
-fn rm_interactive_lists_all_entries_newest_first() {
+fn rm_interactive_lists_all_entries_in_wid_order() {
     let dir = unique_temp_dir("rm-list-order");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -92,17 +92,15 @@ fn rm_interactive_lists_all_entries_newest_first() {
     .unwrap();
 
     let entries = store::collect_entries(&path).unwrap();
-    let display_entries: Vec<_> = entries.into_iter().rev().collect();
-
     assert_eq!(
-        display_entries
+        entries
             .iter()
             .map(|entry| entry.display_label())
             .collect::<Vec<_>>(),
         vec![
-            "2026-03-25 09:15 newest item".to_string(),
-            "2026-03-24 12:10 already done".to_string(),
             "2026-03-24 11:32 first unfinished".to_string(),
+            "2026-03-24 12:10 already done".to_string(),
+            "2026-03-25 09:15 newest item".to_string(),
         ]
     );
 }
@@ -119,10 +117,8 @@ fn rm_interactive_keeps_non_timestamp_done_markers_visible() {
     .unwrap();
 
     let entries = store::collect_entries(&path).unwrap();
-    let display_entries: Vec<_> = entries.into_iter().rev().collect();
-
     assert_eq!(
-        display_entries[0].display_label(),
+        entries[0].display_label(),
         "2026-03-25 09:15 investigate @done(tbd)"
     );
 }
@@ -138,7 +134,7 @@ fn rm_command_interactive_deletes_selected_entry_after_confirmation() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(Some(0));
+    let mut picker = FakePicker::new(Some(2));
     let mut confirmer = FakeConfirm::yes();
     rm_command::run_interactive_at_path(&path, &mut picker, &mut confirmer).unwrap();
 
