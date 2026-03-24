@@ -1,7 +1,9 @@
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 
 use anyhow::{anyhow, Context, Result};
 use chrono::Local;
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 
 use crate::log::{paths::default_log_path, store::append_log_entry};
 
@@ -18,6 +20,10 @@ pub fn run(text: Vec<String>) -> Result<()> {
 }
 
 fn read_summary_from_stdin() -> Result<String> {
+    if io::stdin().is_terminal() {
+        return read_summary_with_line_editor();
+    }
+
     eprint!("summary: ");
     io::stderr().flush().context("failed to flush prompt")?;
 
@@ -29,6 +35,19 @@ fn read_summary_from_stdin() -> Result<String> {
 
     let summary = summary.trim_end_matches(['\r', '\n']);
     validate_summary(summary.to_string())
+}
+
+fn read_summary_with_line_editor() -> Result<String> {
+    let mut editor = DefaultEditor::new().context("failed to initialize line editor")?;
+    let summary = editor.readline("summary: ");
+
+    match summary {
+        Ok(line) => validate_summary(line),
+        Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+            Err(anyhow!("empty summary"))
+        }
+        Err(error) => Err(error).context("failed to read summary"),
+    }
 }
 
 fn validate_summary(summary: String) -> Result<String> {
