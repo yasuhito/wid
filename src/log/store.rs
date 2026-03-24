@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 
 use super::format::{format_day_section, format_log};
 use super::model::{DaySection, Entry, LogDocument};
@@ -32,6 +32,56 @@ pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> R
         summary: summary.to_string(),
     };
     append_log_entry_to_path(path, date, &entry)
+}
+
+pub fn mark_last_unfinished_entry_done(path: &Path, timestamp: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to read log at {}", path.display()));
+        }
+    };
+    let mut updated = String::with_capacity(contents.len() + timestamp.len() + 16);
+    let mut line_start = 0;
+    let mut target = None;
+    let mut in_day_section = false;
+
+    for segment in contents.split_inclusive('\n') {
+        let line_end = line_start + segment.len();
+        let line = segment.trim_end_matches(['\r', '\n']);
+
+        if is_day_heading(line) {
+            in_day_section = true;
+        } else if in_day_section && is_entry_line(line) && !is_done_entry_line(line) {
+            target = Some((line_start, line_end));
+        } else if line.starts_with("## ") {
+            in_day_section = false;
+        }
+
+        line_start = line_end;
+    }
+
+    let Some((start, end)) = target else {
+        return Err(anyhow!("no unfinished entry found"));
+    };
+
+    updated.push_str(&contents[..start]);
+    let segment = &contents[start..end];
+    let body = segment.trim_end_matches(['\r', '\n']);
+    let ending = &segment[body.len()..];
+    updated.push_str(body);
+    updated.push_str(&format!(" @done({timestamp})"));
+    updated.push_str(ending);
+    updated.push_str(&contents[end..]);
+
+    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    Ok(())
 }
 
 fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
@@ -156,6 +206,63 @@ fn newline_ending(contents: &str) -> &str {
     } else {
         "\n"
     }
+}
+
+fn is_done_entry_line(line: &str) -> bool {
+    let Some(rest) = line.strip_suffix(')') else {
+        return false;
+    };
+    let Some((_, timestamp)) = rest.rsplit_once(" @done(") else {
+        return false;
+    };
+
+    let bytes = timestamp.as_bytes();
+    bytes.len() == 16
+        && bytes[0..4].iter().all(u8::is_ascii_digit)
+        && bytes[4] == b'-'
+        && bytes[5..7].iter().all(u8::is_ascii_digit)
+        && bytes[7] == b'-'
+        && bytes[8..10].iter().all(u8::is_ascii_digit)
+        && bytes[10] == b' '
+        && bytes[11..13].iter().all(u8::is_ascii_digit)
+        && bytes[13] == b':'
+        && bytes[14..16].iter().all(u8::is_ascii_digit)
+}
+
+fn is_entry_line(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("- ") else {
+        return false;
+    };
+    let Some((time, summary)) = rest.split_once(' ') else {
+        return false;
+    };
+
+    is_time_like(time) && !summary.is_empty() && !summary.starts_with(' ')
+}
+
+fn is_time_like(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 5
+        && bytes[0..2].iter().all(u8::is_ascii_digit)
+        && bytes[2] == b':'
+        && bytes[3..5].iter().all(u8::is_ascii_digit)
+}
+
+fn is_day_heading(line: &str) -> bool {
+    let Some(date) = line.strip_prefix("## ") else {
+        return false;
+    };
+    is_date_like(date.trim_end())
+}
+
+fn is_date_like(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 10
+        && bytes[0..4].iter().all(u8::is_ascii_digit)
+        && bytes[4] == b'-'
+        && bytes[5..7].iter().all(u8::is_ascii_digit)
+        && bytes[7] == b'-'
+        && bytes[8..10].iter().all(u8::is_ascii_digit)
 }
 
 #[cfg(test)]
