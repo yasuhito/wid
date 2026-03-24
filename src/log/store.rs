@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 
 use super::format::{format_day_section, format_entry, format_log};
-use super::model::{DaySection, Entry, EntryState, LogDocument, LogEntry, UnfinishedEntry};
+use super::model::{DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, UnfinishedEntry};
 use super::parser::{parse_day_heading, parse_entry_line, parse_log};
 use super::paths::default_log_path;
 
@@ -48,6 +48,18 @@ pub fn collect_entries(path: &Path) -> Result<Vec<LogEntry>> {
     };
 
     Ok(collect_entries_from_contents(&contents))
+}
+
+pub fn collect_focus_entries(path: &Path) -> Result<Vec<FocusEntry>> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to read log at {}", path.display()));
+        }
+    };
+
+    Ok(collect_focus_entries_from_contents(&contents))
 }
 
 pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> Result<()> {
@@ -126,14 +138,14 @@ pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
     delete_entry_with_contents(path, &contents, &fresh_target)
 }
 
-pub fn focus_pending_entry(path: &Path, target: &UnfinishedEntry) -> Result<()> {
+pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
     }
 
     let contents = read_log_contents(path)?;
-    let fresh_target = collect_unfinished_entries_from_contents(&contents)
+    let fresh_target = collect_focus_entries_from_contents(&contents)
         .into_iter()
         .find(|entry| {
             entry.ordinal == target.ordinal
@@ -142,6 +154,10 @@ pub fn focus_pending_entry(path: &Path, target: &UnfinishedEntry) -> Result<()> 
                 && entry.summary == target.summary
         })
         .ok_or_else(|| anyhow!("selected entry changed before it could be focused"))?;
+
+    if fresh_target.state.is_active() {
+        return Ok(());
+    }
 
     let demoted = demote_active_entries_in_contents(&contents);
     replace_entry_state_with_contents(path, &demoted, fresh_target.start, fresh_target.end, EntryState::Active)
@@ -223,6 +239,41 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
                     start: line_start,
                     end: line_end,
                 });
+            }
+        }
+
+        line_start = line_end;
+    }
+
+    entries
+}
+
+fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
+    let mut entries = Vec::new();
+    let mut line_start = 0;
+    let mut current_date: Option<String> = None;
+
+    for segment in contents.split_inclusive('\n') {
+        let line_end = line_start + segment.len();
+        let line = segment.trim_end();
+
+        if let Some(date) = parse_day_heading(line) {
+            current_date = Some(date.to_string());
+        } else if line.starts_with("## ") {
+            current_date = None;
+        } else if let Some(date) = current_date.as_ref() {
+            if let Some(entry) = parse_entry_line(line) {
+                if !entry.state.is_done() {
+                    entries.push(FocusEntry {
+                        date: date.clone(),
+                        time: entry.time,
+                        summary: entry.summary,
+                        state: entry.state,
+                        ordinal: entries.len(),
+                        start: line_start,
+                        end: line_end,
+                    });
+                }
             }
         }
 

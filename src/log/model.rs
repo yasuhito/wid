@@ -73,6 +73,29 @@ impl PickerItem for UnfinishedEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FocusEntry {
+    pub date: String,
+    pub time: String,
+    pub summary: String,
+    pub state: EntryState,
+    pub ordinal: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+impl FocusEntry {
+    pub fn display_label(&self) -> String {
+        format!("{} {} {}", self.date, self.time, self.summary)
+    }
+}
+
+impl PickerItem for FocusEntry {
+    fn display_label(&self) -> String {
+        self.display_label()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogEntry {
     pub date: String,
     pub time: String,

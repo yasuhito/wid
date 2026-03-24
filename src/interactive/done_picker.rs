@@ -17,6 +17,14 @@ use crate::log::model::PickerItem;
 
 pub trait Picker {
     fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>>;
+
+    fn pick_with_selected<T: PickerItem>(
+        &mut self,
+        entries: &[T],
+        _selected: usize,
+    ) -> Result<Option<usize>> {
+        self.pick(entries)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +74,14 @@ pub struct TerminalPicker;
 
 impl Picker for TerminalPicker {
     fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
+        self.pick_with_selected(entries, 0)
+    }
+
+    fn pick_with_selected<T: PickerItem>(
+        &mut self,
+        entries: &[T],
+        selected: usize,
+    ) -> Result<Option<usize>> {
         if entries.is_empty() {
             return Ok(None);
         }
@@ -85,6 +101,7 @@ impl Picker for TerminalPicker {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
         let mut state = PickerState::new(entries.len());
+        state.selected = selected.min(entries.len().saturating_sub(1));
 
         loop {
             terminal.draw(|frame| {

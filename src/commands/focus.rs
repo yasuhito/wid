@@ -15,12 +15,17 @@ pub fn run(interactive: bool) -> Result<()> {
 }
 
 pub fn run_interactive_at_path(path: &Path, picker: &mut impl Picker) -> Result<()> {
-    let entries = store::collect_unfinished_entries(path)?;
+    let entries = store::collect_focus_entries(path)?;
     if entries.is_empty() {
         return Err(anyhow!("no pending entry found"));
     }
 
-    let Some(index) = picker.pick(&entries)? else {
+    let default_index = entries
+        .iter()
+        .position(|entry| entry.state.is_active())
+        .unwrap_or(0);
+
+    let Some(index) = picker.pick_with_selected(&entries, default_index)? else {
         return Ok(());
     };
 
@@ -28,5 +33,5 @@ pub fn run_interactive_at_path(path: &Path, picker: &mut impl Picker) -> Result<
         return Err(anyhow!("invalid selection"));
     };
 
-    store::focus_pending_entry(path, target)
+    store::focus_entry(path, target)
 }
