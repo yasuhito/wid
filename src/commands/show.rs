@@ -33,8 +33,7 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
             output.push_str(&render_entry_line(entry.state, &entry.time, &entry.summary, colorize));
             output.push('\n');
             for note in &entry.notes {
-                output.push_str("  - ");
-                output.push_str(note);
+                output.push_str(&render_note_line(entry.state, note, colorize));
                 output.push('\n');
             }
         }
@@ -45,6 +44,19 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
 
 fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: bool) -> String {
     let line = format!("- {} {} {}", state.checkbox(), time, summary);
+    if !colorize {
+        return line;
+    }
+
+    match state {
+        EntryState::Pending => line,
+        EntryState::Active => format!("{}", line.with(crossterm::style::Color::Yellow)),
+        EntryState::Done => format!("{}", line.dark_grey()),
+    }
+}
+
+fn render_note_line(state: EntryState, note: &str, colorize: bool) -> String {
+    let line = format!("  - {note}");
     if !colorize {
         return line;
     }
