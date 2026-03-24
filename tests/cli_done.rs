@@ -250,8 +250,8 @@ fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 11:32 oldest item".to_string(),
-            "2026-03-25 09:15 newest unfinished".to_string(),
+            "2026-03-24 [ ] 11:32 oldest item".to_string(),
+            "2026-03-25 [ ] 09:15 newest unfinished".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -274,8 +274,8 @@ fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 11:32 current task".to_string(),
-            "2026-03-24 11:48 pending task".to_string(),
+            "2026-03-24 [>] 11:32 current task".to_string(),
+            "2026-03-24 [ ] 11:48 pending task".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));

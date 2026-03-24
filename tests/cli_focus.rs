@@ -84,9 +84,9 @@ fn focus_interactive_lists_only_pending_entries() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 11:32 current task".to_string(),
-            "2026-03-24 11:48 first pending".to_string(),
-            "2026-03-25 09:15 second pending".to_string(),
+            "2026-03-24 [>] 11:32 current task".to_string(),
+            "2026-03-24 [ ] 11:48 first pending".to_string(),
+            "2026-03-25 [ ] 09:15 second pending".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -127,6 +127,26 @@ fn focus_interactive_keeps_active_item_unchanged_when_reselected() {
         "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 current task\n- [ ] 11:48 selected task\n"
     );
     assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
+fn focus_interactive_updates_checkbox_not_summary_marker() {
+    let dir = unique_temp_dir("focus-summary-marker");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-25\n\n- [>] 07:39 README.md を追加\n- [ ] 08:01 rm -i でアイテムの [ ] と [x], [>] も表示するようにする。\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(1));
+    focus_command::run_interactive_at_path(&path, &mut picker).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "# wid log\n\n## 2026-03-25\n\n- [ ] 07:39 README.md を追加\n- [>] 08:01 rm -i でアイテムの [ ] と [x], [>] も表示するようにする。\n"
+    );
 }
 
 struct FakePicker {

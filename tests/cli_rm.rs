@@ -98,9 +98,9 @@ fn rm_interactive_lists_all_entries_in_wid_order() {
             .map(|entry| entry.display_label())
             .collect::<Vec<_>>(),
         vec![
-            "2026-03-24 11:32 first unfinished".to_string(),
-            "2026-03-24 12:10 already done".to_string(),
-            "2026-03-25 09:15 newest item".to_string(),
+            "2026-03-24 [ ] 11:32 first unfinished".to_string(),
+            "2026-03-24 [x] 12:10 already done".to_string(),
+            "2026-03-25 [ ] 09:15 newest item".to_string(),
         ]
     );
 }
@@ -117,7 +117,7 @@ fn rm_interactive_keeps_completed_entries_visible() {
     .unwrap();
 
     let entries = store::collect_entries(&path).unwrap();
-    assert_eq!(entries[0].display_label(), "2026-03-25 09:15 investigate");
+    assert_eq!(entries[0].display_label(), "2026-03-25 [x] 09:15 investigate");
 }
 
 #[test]

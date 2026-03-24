@@ -255,6 +255,7 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
                     date: date.clone(),
                     time: entry.time,
                     summary: entry.summary,
+                    state: entry.state,
                     ordinal: entries.len(),
                     start: line_start,
                     end: line_end,
@@ -494,12 +495,14 @@ fn entry_line_state(contents: &str, start: usize, end: usize) -> Option<EntrySta
 }
 
 fn replace_checkbox(line: &str, state: EntryState) -> String {
-    if line.contains("[>]") {
-        line.replacen("[>]", state.checkbox(), 1)
-    } else if line.contains("[x]") {
-        line.replacen("[x]", state.checkbox(), 1)
+    if let Some(rest) = line.strip_prefix("- [>] ") {
+        format!("- {} {}", state.checkbox(), rest)
+    } else if let Some(rest) = line.strip_prefix("- [x] ") {
+        format!("- {} {}", state.checkbox(), rest)
+    } else if let Some(rest) = line.strip_prefix("- [ ] ") {
+        format!("- {} {}", state.checkbox(), rest)
     } else {
-        line.replacen("[ ]", state.checkbox(), 1)
+        line.to_string()
     }
 }
 

@@ -85,7 +85,13 @@ pub struct FocusEntry {
 
 impl FocusEntry {
     pub fn display_label(&self) -> String {
-        format!("{} {} {}", self.date, self.time, self.summary)
+        format!(
+            "{} {} {} {}",
+            self.date,
+            self.state.checkbox(),
+            self.time,
+            self.summary
+        )
     }
 }
 
@@ -100,6 +106,7 @@ pub struct LogEntry {
     pub date: String,
     pub time: String,
     pub summary: String,
+    pub state: EntryState,
     pub ordinal: usize,
     pub start: usize,
     pub end: usize,
@@ -107,7 +114,13 @@ pub struct LogEntry {
 
 impl LogEntry {
     pub fn display_label(&self) -> String {
-        format!("{} {} {}", self.date, self.time, self.summary)
+        format!(
+            "{} {} {} {}",
+            self.date,
+            self.state.checkbox(),
+            self.time,
+            self.summary
+        )
     }
 }
 
@@ -127,6 +140,7 @@ mod tests {
             date: "2026-03-25".into(),
             time: "09:15".into(),
             summary: "completed work".into(),
+            state: EntryState::Done,
             ordinal: 0,
             start: 0,
             end: 0,
@@ -135,12 +149,13 @@ mod tests {
             date: "2026-03-25".into(),
             time: "09:16".into(),
             summary: "investigate [x]".into(),
+            state: EntryState::Pending,
             ordinal: 1,
             start: 0,
             end: 0,
         };
 
-        assert_eq!(done_entry.display_label(), "2026-03-25 09:15 completed work");
-        assert_eq!(non_done_entry.display_label(), "2026-03-25 09:16 investigate [x]");
+        assert_eq!(done_entry.display_label(), "2026-03-25 [x] 09:15 completed work");
+        assert_eq!(non_done_entry.display_label(), "2026-03-25 [ ] 09:16 investigate [x]");
     }
 }

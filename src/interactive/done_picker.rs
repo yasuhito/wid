@@ -502,6 +502,7 @@ mod tests {
             date: "2026-03-25".into(),
             time: "09:15".into(),
             summary: "selected".into(),
+            state: crate::log::model::EntryState::Pending,
             ordinal: 0,
             start: 0,
             end: 0,
@@ -518,10 +519,10 @@ mod tests {
         let selected_index = rendered
             .rows
             .iter()
-            .position(|row| row.text.contains("2026-03-25 09:15 selected"))
+            .position(|row| row.text.contains("2026-03-25 [ ] 09:15 selected"))
             .unwrap();
         assert_eq!(confirm_index, selected_index + 1);
-        let selected = find_cell(&rendered, "2026-03-25 09:15 selected");
+        let selected = find_cell(&rendered, "2026-03-25 [ ] 09:15 selected");
         assert_eq!(selected.fg, Color::Black);
         assert!(selected.bg != Color::Reset);
     }
