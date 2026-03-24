@@ -6,10 +6,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{self, Clear, ClearType};
 
-use crate::log::model::UnfinishedEntry;
+use crate::log::model::PickerItem;
 
 pub trait Picker {
-    fn pick(&mut self, entries: &[UnfinishedEntry]) -> Result<Option<usize>>;
+    fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,7 +58,7 @@ impl PickerState {
 pub struct TerminalPicker;
 
 impl Picker for TerminalPicker {
-    fn pick(&mut self, entries: &[UnfinishedEntry]) -> Result<Option<usize>> {
+    fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
         if entries.is_empty() {
             return Ok(None);
         }
@@ -91,9 +91,9 @@ impl Picker for TerminalPicker {
     }
 }
 
-fn render(stdout: &mut impl Write, entries: &[UnfinishedEntry], selected: usize) -> Result<()> {
+fn render<T: PickerItem>(stdout: &mut impl Write, entries: &[T], selected: usize) -> Result<()> {
     execute!(stdout, Clear(ClearType::All), cursor::MoveTo(0, 0))?;
-    write_line(stdout, "Select an unfinished entry:")?;
+    write_line(stdout, "Select an entry:")?;
 
     for (index, entry) in entries.iter().enumerate() {
         let prefix = if index == selected { ">" } else { " " };
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn render_uses_crlf_line_endings_in_raw_mode_friendly_output() {
         let mut output = Vec::new();
-        let entries = vec![UnfinishedEntry {
+        let entries = vec![crate::log::model::UnfinishedEntry {
             date: "2026-03-24".into(),
             time: "11:32".into(),
             summary: "spaced entry".into(),
@@ -146,7 +146,7 @@ mod tests {
         render(&mut output, &entries, 0).unwrap();
 
         let rendered = String::from_utf8(output).unwrap();
-        assert!(rendered.contains("Select an unfinished entry:\r\n"));
+        assert!(rendered.contains("Select an entry:\r\n"));
         assert!(rendered.contains("> 2026-03-24 11:32 spaced entry\r\n"));
         assert!(rendered.contains("\r\nj/Down next, k/Up previous, Enter confirm, q/Esc cancel\r\n"));
     }

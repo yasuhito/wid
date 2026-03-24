@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 
 use super::format::{format_day_section, format_log};
-use super::model::{DaySection, Entry, LogDocument, UnfinishedEntry};
+use super::model::{DaySection, Entry, LogDocument, LogEntry, UnfinishedEntry};
 use super::parser::{parse_day_heading, parse_entry_line, parse_log};
 use super::paths::default_log_path;
 
@@ -36,6 +36,18 @@ pub fn collect_unfinished_entries(path: &Path) -> Result<Vec<UnfinishedEntry>> {
     };
 
     Ok(collect_unfinished_entries_from_contents(&contents))
+}
+
+pub fn collect_entries(path: &Path) -> Result<Vec<LogEntry>> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to read log at {}", path.display()));
+        }
+    };
+
+    Ok(collect_entries_from_contents(&contents))
 }
 
 pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> Result<()> {
@@ -82,6 +94,26 @@ pub fn mark_unfinished_entry_done(
         .ok_or_else(|| anyhow!("selected entry changed before it could be completed"))?;
 
     mark_unfinished_entry_done_with_contents(path, &contents, &fresh_target, timestamp)
+}
+
+pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let fresh_target = collect_entries_from_contents(&contents)
+        .into_iter()
+        .find(|entry| {
+            entry.ordinal == target.ordinal
+                && entry.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+        })
+        .ok_or_else(|| anyhow!("selected entry changed before it could be removed"))?;
+
+    delete_entry_with_contents(path, &contents, &fresh_target)
 }
 
 fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
@@ -137,6 +169,38 @@ fn collect_unfinished_entries_from_contents(contents: &str) -> Vec<UnfinishedEnt
     entries
 }
 
+fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
+    let mut entries = Vec::new();
+    let mut line_start = 0;
+    let mut current_date: Option<String> = None;
+
+    for segment in contents.split_inclusive('\n') {
+        let line_end = line_start + segment.len();
+        let line = segment.trim_end();
+
+        if let Some(date) = parse_day_heading(line) {
+            current_date = Some(date.to_string());
+        } else if line.starts_with("## ") {
+            current_date = None;
+        } else if let Some(date) = current_date.as_ref() {
+            if let Some((time, summary)) = parse_entry_line(line) {
+                entries.push(LogEntry {
+                    date: date.clone(),
+                    time,
+                    summary,
+                    ordinal: entries.len(),
+                    start: line_start,
+                    end: line_end,
+                });
+            }
+        }
+
+        line_start = line_end;
+    }
+
+    entries
+}
+
 fn mark_unfinished_entry_done_with_contents(
     path: &Path,
     contents: &str,
@@ -151,6 +215,15 @@ fn mark_unfinished_entry_done_with_contents(
     updated.push_str(body);
     updated.push_str(&format!(" @done({timestamp})"));
     updated.push_str(ending);
+    updated.push_str(&contents[target.end..]);
+
+    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    Ok(())
+}
+
+fn delete_entry_with_contents(path: &Path, contents: &str, target: &LogEntry) -> Result<()> {
+    let mut updated = String::with_capacity(contents.len().saturating_sub(target.end - target.start));
+    updated.push_str(&contents[..target.start]);
     updated.push_str(&contents[target.end..]);
 
     fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;

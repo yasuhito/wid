@@ -442,10 +442,7 @@ impl FakePicker {
 }
 
 impl interactive::done_picker::Picker for FakePicker {
-    fn pick(
-        &mut self,
-        _entries: &[model::UnfinishedEntry],
-    ) -> anyhow::Result<Option<usize>> {
+    fn pick<T: model::PickerItem>(&mut self, _entries: &[T]) -> anyhow::Result<Option<usize>> {
         self.calls += 1;
         Ok(self.result)
     }

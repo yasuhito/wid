@@ -15,6 +15,10 @@ pub enum Commands {
         #[arg(short = 'i', long = "interactive")]
         interactive: bool,
     },
+    Rm {
+        #[arg(short = 'i', long = "interactive")]
+        interactive: bool,
+    },
     Now {
         text: Vec<String>,
     },
@@ -25,6 +29,7 @@ pub fn run() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Done { interactive }) => commands::done::run(interactive),
+        Some(Commands::Rm { interactive }) => commands::rm::run(interactive),
         Some(Commands::Now { text }) => commands::now::run(text),
         None => commands::show::run(),
     }
