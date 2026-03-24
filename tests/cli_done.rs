@@ -206,13 +206,37 @@ fn done_command_interactive_marks_selected_entry() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(Some(0));
+    let mut picker = FakePicker::new(Some(1));
     done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
 
     assert_eq!(picker.calls, 1);
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
         "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n\n## 2026-03-25\n\n- [x] 09:15 selected item\n"
+    );
+}
+
+#[test]
+fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
+    let dir = unique_temp_dir("done-interactive-order");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 oldest item\n- [x] 11:48 already done\n\n## 2026-03-25\n\n- [ ] 09:15 newest unfinished\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
+
+    assert_eq!(picker.calls, 1);
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-24 11:32 oldest item".to_string(),
+            "2026-03-25 09:15 newest unfinished".to_string(),
+        ]
     );
 }
 
@@ -433,17 +457,23 @@ fn done_store_errors_when_no_unfinished_entry_exists() {
 struct FakePicker {
     result: Option<usize>,
     calls: usize,
+    items: Vec<String>,
 }
 
 impl FakePicker {
     fn new(result: Option<usize>) -> Self {
-        Self { result, calls: 0 }
+        Self {
+            result,
+            calls: 0,
+            items: Vec::new(),
+        }
     }
 }
 
 impl interactive::done_picker::Picker for FakePicker {
-    fn pick<T: model::PickerItem>(&mut self, _entries: &[T]) -> anyhow::Result<Option<usize>> {
+    fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
         self.calls += 1;
+        self.items = entries.iter().map(model::PickerItem::display_label).collect();
         Ok(self.result)
     }
 }
