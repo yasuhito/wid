@@ -67,9 +67,29 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n"
+        "## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n"
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn wid_omits_empty_day_sections_from_output() {
+    let home = unique_temp_dir("show-skip-empty-day");
+    let log_path = home.join(".local/share/wid/log.md");
+    fs::create_dir_all(log_path.parent().unwrap()).unwrap();
+    fs::write(
+        &log_path,
+        "## 2026-03-24\n\n## 2026-03-25\n\n- [ ] 11:32 CI が落ちていたので修正\n",
+    )
+    .unwrap();
+
+    let output = run_wid(&home, &[]);
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "## 2026-03-25\n\n- [ ] 11:32 CI が落ちていたので修正\n"
+    );
 }
 
 #[test]

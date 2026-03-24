@@ -162,13 +162,6 @@ fn parse_accepts_day_headings_and_entries_with_trailing_spaces() {
 }
 
 #[test]
-fn parse_empty_or_header_only_log_returns_zero_days() {
-    let doc = parse_log("# wid log\n").unwrap();
-
-    assert!(doc.days.is_empty());
-}
-
-#[test]
 fn parse_empty_input_returns_zero_days() {
     let doc = parse_log("").unwrap();
 

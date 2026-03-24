@@ -4,7 +4,6 @@ use anyhow::Context;
 use crossterm::style::Stylize;
 
 use crate::log::{
-    format::format_log_header,
     model::{EntryState, LogDocument},
     store::load_log,
 };
@@ -21,9 +20,10 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 pub fn render_document(document: &LogDocument, colorize: bool) -> String {
-    let mut output = String::from(format_log_header());
+    let mut output = String::new();
+    let non_empty_days: Vec<_> = document.days.iter().filter(|day| !day.entries.is_empty()).collect();
 
-    for (index, day) in document.days.iter().enumerate() {
+    for (index, day) in non_empty_days.iter().enumerate() {
         if index > 0 {
             output.push('\n');
         }
