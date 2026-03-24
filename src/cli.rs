@@ -21,6 +21,11 @@ pub enum Commands {
         #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
         interactive: bool,
     },
+    #[command(about = "Edit an existing item summary")]
+    Edit {
+        #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
+        interactive: bool,
+    },
     #[command(about = "Focus an existing item")]
     Focus {
         #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
@@ -49,6 +54,7 @@ pub fn run() -> anyhow::Result<()> {
     match cli.command {
         Some(Commands::Add { text }) => commands::add::run(text),
         Some(Commands::Done { interactive }) => commands::done::run(interactive),
+        Some(Commands::Edit { interactive }) => commands::edit::run(interactive),
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
         Some(Commands::Rm { interactive }) => commands::rm::run(interactive),
         Some(Commands::Now { text }) => commands::now::run(text),

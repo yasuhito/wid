@@ -160,6 +160,27 @@ pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
     delete_entry_with_contents(path, &contents, &fresh_target)
 }
 
+pub fn edit_entry_summary(path: &Path, target: &LogEntry, summary: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let fresh_target = collect_entries_from_contents(&contents)
+        .into_iter()
+        .find(|entry| {
+            entry.ordinal == target.ordinal
+                && entry.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+                && entry.state == target.state
+        })
+        .ok_or_else(|| anyhow!("selected entry changed before it could be edited"))?;
+
+    edit_entry_summary_with_contents(path, &contents, &fresh_target, summary)
+}
+
 pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -412,6 +433,27 @@ fn replace_entry_state_with_contents(
 fn delete_entry_with_contents(path: &Path, contents: &str, target: &LogEntry) -> Result<()> {
     let mut updated = String::with_capacity(contents.len().saturating_sub(target.end - target.start));
     updated.push_str(&contents[..target.start]);
+    updated.push_str(&contents[target.end..]);
+
+    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    Ok(())
+}
+
+fn edit_entry_summary_with_contents(path: &Path, contents: &str, target: &LogEntry, summary: &str) -> Result<()> {
+    let mut updated = String::with_capacity(contents.len() + summary.len());
+    updated.push_str(&contents[..target.start]);
+    let segment = &contents[target.start..target.end];
+    let body = segment.trim_end_matches(['\r', '\n']);
+    let ending = &segment[body.len()..];
+    let entry = parse_entry_line(body).ok_or_else(|| anyhow!("failed to parse target entry"))?;
+    let updated_body = format_entry(&Entry {
+        time: entry.time,
+        summary: summary.to_string(),
+        state: entry.state,
+        notes: Vec::new(),
+    });
+    updated.push_str(&updated_body);
+    updated.push_str(ending);
     updated.push_str(&contents[target.end..]);
 
     fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;

@@ -1,5 +1,6 @@
 pub mod add;
 pub mod done;
+pub mod edit;
 pub mod focus;
 pub mod note;
 pub mod now;

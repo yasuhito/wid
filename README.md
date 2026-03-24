@@ -10,7 +10,11 @@ wid add some text
 wid add
 wid done
 wid done -i
+wid edit
+wid edit -i
 wid focus -i
+wid note some note
+wid note
 wid rm -i
 wid now some text
 wid now
@@ -21,7 +25,11 @@ wid now
 `wid add` prompts for a one-line pending entry on standard input.
 `wid done` marks the active entry as done, or the last pending entry when nothing is active.
 `wid done -i` lets you choose which unfinished entry to mark as done.
+`wid edit` edits the active entry, or the latest entry when nothing is active.
+`wid edit -i` lets you choose which entry summary to edit.
 `wid focus -i` lets you choose which pending entry becomes the active one.
+`wid note some note` appends a note under the active entry, or the last pending entry when nothing is active.
+`wid note` prompts for a one-line note on standard input.
 `wid rm -i` lets you choose which entry to delete after confirmation.
 `wid now some text` appends a new active entry.
 `wid now` prompts for a one-line summary on standard input.
