@@ -102,6 +102,30 @@ fn parse_ignores_unrelated_lines() {
 }
 
 #[test]
+fn parse_non_date_headings_end_the_current_day_section() {
+    let input =
+        "# wid log\n\n## 2026-03-24\n\n- 09:00 着手\n\n## Notes\n\n- 09:30 無視される\n";
+
+    let doc = parse_log(input).unwrap();
+
+    assert_eq!(doc.days.len(), 1);
+    assert_eq!(doc.days[0].entries.len(), 1);
+    assert_eq!(doc.days[0].entries[0].summary, "着手");
+}
+
+#[test]
+fn parse_accepts_day_headings_and_entries_with_trailing_spaces() {
+    let input = "# wid log\n\n## 2026-03-24   \n\n- 09:00 着手   \n";
+
+    let doc = parse_log(input).unwrap();
+
+    assert_eq!(doc.days.len(), 1);
+    assert_eq!(doc.days[0].date, "2026-03-24");
+    assert_eq!(doc.days[0].entries.len(), 1);
+    assert_eq!(doc.days[0].entries[0].summary, "着手");
+}
+
+#[test]
 fn parse_empty_or_header_only_log_returns_zero_days() {
     let doc = parse_log("# wid log\n").unwrap();
 

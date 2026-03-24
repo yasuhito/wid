@@ -13,15 +13,22 @@ pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
             }
 
             current_day = Some(DaySection {
-                date,
+                date: date.to_string(),
                 entries: Vec::new(),
             });
             continue;
         }
 
-        if let Some(entry) = parse_entry(line) {
+        if line.starts_with("## ") {
+            if let Some(day) = current_day.take() {
+                document.days.push(day);
+            }
+            continue;
+        }
+
+        if let Some((time, summary)) = parse_entry_line(line) {
             if let Some(day) = current_day.as_mut() {
-                day.entries.push(entry);
+                day.entries.push(Entry { time, summary });
             }
         }
     }
@@ -33,16 +40,16 @@ pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
     Ok(document)
 }
 
-fn parse_day_heading(line: &str) -> Option<String> {
+pub(crate) fn parse_day_heading(line: &str) -> Option<&str> {
     let date = line.strip_prefix("## ")?;
     if is_date_like(date) {
-        Some(date.to_string())
+        Some(date)
     } else {
         None
     }
 }
 
-fn parse_entry(line: &str) -> Option<Entry> {
+pub(crate) fn parse_entry_line(line: &str) -> Option<(String, String)> {
     let rest = line.strip_prefix("- ")?;
     let (time, summary) = rest.split_once(' ')?;
     if !is_time_like(time) {
@@ -53,10 +60,7 @@ fn parse_entry(line: &str) -> Option<Entry> {
         return None;
     }
 
-    Some(Entry {
-        time: time.to_string(),
-        summary: summary.to_string(),
-    })
+    Some((time.to_string(), summary.to_string()))
 }
 
 fn is_date_like(value: &str) -> bool {

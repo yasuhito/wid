@@ -7,12 +7,14 @@
 ```bash
 wid
 wid done
+wid done -i
 wid now some text
 wid now
 ```
 
 `wid` prints the log.
 `wid done` marks the last unfinished entry as done.
+`wid done -i` lets you choose which unfinished entry to mark as done.
 `wid now some text` appends a new entry.
 `wid now` prompts for a one-line summary on standard input.
 

@@ -12,6 +12,26 @@ mod parser;
 mod paths;
 #[path = "../src/log/store.rs"]
 mod store;
+#[path = "../src/interactive/done_picker.rs"]
+mod done_picker;
+mod interactive {
+    pub mod done_picker {
+        pub use crate::done_picker::*;
+    }
+}
+mod log {
+    pub mod model {
+        pub use crate::model::*;
+    }
+    pub mod paths {
+        pub use crate::paths::*;
+    }
+    pub mod store {
+        pub use crate::store::*;
+    }
+}
+#[path = "../src/commands/done.rs"]
+mod done_command;
 
 use std::fs;
 use std::io::Write;
@@ -116,6 +136,186 @@ fn done_command_errors_when_log_has_no_entries() {
     assert!(!output.status.success(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("unfinished"), "{stderr}");
+}
+
+#[test]
+fn done_interactive_picker_moves_down_and_confirms_selection() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut picker = interactive::done_picker::PickerState::new(3);
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Confirmed(1)
+    );
+}
+
+#[test]
+fn done_interactive_picker_supports_k_and_up_for_previous_selection() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut picker = interactive::done_picker::PickerState::new(3);
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 1);
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 0);
+}
+
+#[test]
+fn done_interactive_picker_cancels_on_q_and_escape() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut picker = interactive::done_picker::PickerState::new(2);
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Cancelled
+    );
+
+    let mut picker = interactive::done_picker::PickerState::new(2);
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Cancelled
+    );
+}
+
+#[test]
+fn done_command_interactive_marks_selected_entry() {
+    let dir = unique_temp_dir("done-interactive-mark-selected");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n- 11:48 already done @done(2026-03-24 11:50)\n\n## 2026-03-25\n\n- 09:15 selected item\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(0));
+    done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
+
+    assert_eq!(picker.calls, 1);
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n- 11:48 already done @done(2026-03-24 11:50)\n\n## 2026-03-25\n\n- 09:15 selected item @done(2026-03-25 09:16)\n"
+    );
+}
+
+#[test]
+fn done_command_interactive_cancel_leaves_log_unchanged() {
+    let dir = unique_temp_dir("done-interactive-cancel");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n- 11:48 second unfinished\n",
+    )
+    .unwrap();
+
+    let before = fs::read_to_string(&path).unwrap();
+    let mut picker = FakePicker::new(None);
+    done_command::run_interactive_at_path(&path, "2026-03-24 11:52", &mut picker).unwrap();
+
+    assert_eq!(picker.calls, 1);
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
+}
+
+#[test]
+fn done_command_interactive_errors_on_out_of_bounds_selection() {
+    let dir = unique_temp_dir("done-interactive-out-of-bounds");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 only unfinished\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(9));
+    let error =
+        done_command::run_interactive_at_path(&path, "2026-03-24 11:52", &mut picker).unwrap_err();
+
+    assert!(format!("{error:#}").contains("selection"), "{error:#}");
+}
+
+#[test]
+fn done_store_rejects_stale_unfinished_entry_targets() {
+    let dir = unique_temp_dir("done-stale-target");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 only unfinished\n",
+    )
+    .unwrap();
+
+    let target = store::collect_unfinished_entries(&path).unwrap().pop().unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 only unfinished (renamed)\n",
+    )
+    .unwrap();
+
+    let error = store::mark_unfinished_entry_done(&path, &target, "2026-03-24 11:52").unwrap_err();
+
+    assert!(format!("{error:#}").contains("changed"), "{error:#}");
+}
+
+#[test]
+fn done_store_handles_trailing_spaces_like_the_parser() {
+    let dir = unique_temp_dir("done-trailing-spaces");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24   \n\n- 11:32 spaced entry   \n",
+    )
+    .unwrap();
+
+    store::mark_last_unfinished_entry_done(&path, "2026-03-24 11:52").unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "# wid log\n\n## 2026-03-24   \n\n- 11:32 spaced entry    @done(2026-03-24 11:52)\n"
+    );
+}
+
+#[test]
+fn done_store_collects_unfinished_entries_in_oldest_first_order() {
+    let dir = unique_temp_dir("done-collect-order");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- 11:32 first unfinished\n\n## 2026-03-25\n\n- 09:15 latest unfinished\n",
+    )
+    .unwrap();
+
+    let entries = store::collect_unfinished_entries(&path).unwrap();
+    let labels: Vec<_> = entries.iter().map(|entry| entry.display_label()).collect();
+
+    assert_eq!(
+        labels,
+        vec![
+            "2026-03-24 11:32 first unfinished".to_string(),
+            "2026-03-25 09:15 latest unfinished".to_string(),
+        ]
+    );
 }
 
 #[test]
@@ -228,4 +428,25 @@ fn done_store_errors_when_no_unfinished_entry_exists() {
     let message = format!("{error:#}");
 
     assert!(message.contains("unfinished"), "{message}");
+}
+
+struct FakePicker {
+    result: Option<usize>,
+    calls: usize,
+}
+
+impl FakePicker {
+    fn new(result: Option<usize>) -> Self {
+        Self { result, calls: 0 }
+    }
+}
+
+impl interactive::done_picker::Picker for FakePicker {
+    fn pick(
+        &mut self,
+        _entries: &[model::UnfinishedEntry],
+    ) -> anyhow::Result<Option<usize>> {
+        self.calls += 1;
+        Ok(self.result)
+    }
 }

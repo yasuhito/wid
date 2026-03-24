@@ -4,8 +4,8 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 
 use super::format::{format_day_section, format_log};
-use super::model::{DaySection, Entry, LogDocument};
-use super::parser::parse_log;
+use super::model::{DaySection, Entry, LogDocument, UnfinishedEntry};
+use super::parser::{parse_day_heading, parse_entry_line, parse_log};
 use super::paths::default_log_path;
 
 pub fn load_log() -> Result<LogDocument> {
@@ -26,6 +26,18 @@ pub fn save_log(document: &LogDocument) -> Result<()> {
     save_log_to_path(&path, document)
 }
 
+pub fn collect_unfinished_entries(path: &Path) -> Result<Vec<UnfinishedEntry>> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to read log at {}", path.display()));
+        }
+    };
+
+    Ok(collect_unfinished_entries_from_contents(&contents))
+}
+
 pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> Result<()> {
     let entry = Entry {
         time: time.to_string(),
@@ -40,48 +52,36 @@ pub fn mark_last_unfinished_entry_done(path: &Path, timestamp: &str) -> Result<(
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
     }
 
-    let contents = match fs::read_to_string(path) {
-        Ok(contents) => contents,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(error) => {
-            return Err(error).with_context(|| format!("failed to read log at {}", path.display()));
-        }
-    };
-    let mut updated = String::with_capacity(contents.len() + timestamp.len() + 16);
-    let mut line_start = 0;
-    let mut target = None;
-    let mut in_day_section = false;
-
-    for segment in contents.split_inclusive('\n') {
-        let line_end = line_start + segment.len();
-        let line = segment.trim_end_matches(['\r', '\n']);
-
-        if is_day_heading(line) {
-            in_day_section = true;
-        } else if in_day_section && is_entry_line(line) && !is_done_entry_line(line) {
-            target = Some((line_start, line_end));
-        } else if line.starts_with("## ") {
-            in_day_section = false;
-        }
-
-        line_start = line_end;
-    }
-
-    let Some((start, end)) = target else {
+    let contents = read_log_contents(path)?;
+    let Some(target) = collect_unfinished_entries_from_contents(&contents).last().cloned() else {
         return Err(anyhow!("no unfinished entry found"));
     };
 
-    updated.push_str(&contents[..start]);
-    let segment = &contents[start..end];
-    let body = segment.trim_end_matches(['\r', '\n']);
-    let ending = &segment[body.len()..];
-    updated.push_str(body);
-    updated.push_str(&format!(" @done({timestamp})"));
-    updated.push_str(ending);
-    updated.push_str(&contents[end..]);
+    mark_unfinished_entry_done_with_contents(path, &contents, &target, timestamp)
+}
 
-    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
-    Ok(())
+pub fn mark_unfinished_entry_done(
+    path: &Path,
+    target: &UnfinishedEntry,
+    timestamp: &str,
+) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let fresh_target = collect_unfinished_entries_from_contents(&contents)
+        .into_iter()
+        .find(|entry| {
+            entry.ordinal == target.ordinal
+                && entry.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+        })
+        .ok_or_else(|| anyhow!("selected entry changed before it could be completed"))?;
+
+    mark_unfinished_entry_done_with_contents(path, &contents, &fresh_target, timestamp)
 }
 
 fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
@@ -92,6 +92,68 @@ fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
 
     let contents = format_log(document);
     fs::write(path, contents)?;
+    Ok(())
+}
+
+fn read_log_contents(path: &Path) -> Result<String> {
+    match fs::read_to_string(path) {
+        Ok(contents) => Ok(contents),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+    }
+}
+
+fn collect_unfinished_entries_from_contents(contents: &str) -> Vec<UnfinishedEntry> {
+    let mut entries = Vec::new();
+    let mut line_start = 0;
+    let mut current_date: Option<String> = None;
+
+    for segment in contents.split_inclusive('\n') {
+        let line_end = line_start + segment.len();
+        let line = segment.trim_end();
+
+        if let Some(date) = parse_day_heading(line) {
+            current_date = Some(date.to_string());
+        } else if line.starts_with("## ") {
+            current_date = None;
+        } else if let Some(date) = current_date.as_ref() {
+            if !is_done_entry_line(line) {
+                if let Some((time, summary)) = parse_entry_line(line) {
+                    entries.push(UnfinishedEntry {
+                        date: date.clone(),
+                        time,
+                        summary,
+                        ordinal: entries.len(),
+                        start: line_start,
+                        end: line_end,
+                    });
+                }
+            }
+        }
+
+        line_start = line_end;
+    }
+
+    entries
+}
+
+fn mark_unfinished_entry_done_with_contents(
+    path: &Path,
+    contents: &str,
+    target: &UnfinishedEntry,
+    timestamp: &str,
+) -> Result<()> {
+    let mut updated = String::with_capacity(contents.len() + timestamp.len() + 16);
+    updated.push_str(&contents[..target.start]);
+    let segment = &contents[target.start..target.end];
+    let body = segment.trim_end_matches(['\r', '\n']);
+    let ending = &segment[body.len()..];
+    updated.push_str(body);
+    updated.push_str(&format!(" @done({timestamp})"));
+    updated.push_str(ending);
+    updated.push_str(&contents[target.end..]);
+
+    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
 }
 
@@ -227,42 +289,6 @@ fn is_done_entry_line(line: &str) -> bool {
         && bytes[11..13].iter().all(u8::is_ascii_digit)
         && bytes[13] == b':'
         && bytes[14..16].iter().all(u8::is_ascii_digit)
-}
-
-fn is_entry_line(line: &str) -> bool {
-    let Some(rest) = line.strip_prefix("- ") else {
-        return false;
-    };
-    let Some((time, summary)) = rest.split_once(' ') else {
-        return false;
-    };
-
-    is_time_like(time) && !summary.is_empty() && !summary.starts_with(' ')
-}
-
-fn is_time_like(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    bytes.len() == 5
-        && bytes[0..2].iter().all(u8::is_ascii_digit)
-        && bytes[2] == b':'
-        && bytes[3..5].iter().all(u8::is_ascii_digit)
-}
-
-fn is_day_heading(line: &str) -> bool {
-    let Some(date) = line.strip_prefix("## ") else {
-        return false;
-    };
-    is_date_like(date.trim_end())
-}
-
-fn is_date_like(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    bytes.len() == 10
-        && bytes[0..4].iter().all(u8::is_ascii_digit)
-        && bytes[4] == b'-'
-        && bytes[5..7].iter().all(u8::is_ascii_digit)
-        && bytes[7] == b'-'
-        && bytes[8..10].iter().all(u8::is_ascii_digit)
 }
 
 #[cfg(test)]
