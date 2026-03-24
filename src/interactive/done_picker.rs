@@ -70,17 +70,26 @@ impl Picker for TerminalPicker {
             return Ok(None);
         }
 
+        let anchor_row = cursor::position()?.1;
+        let clear_area = panel_area(
+            Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
+            anchor_row,
+            entries.len(),
+            PickerMode::Browse,
+        );
         terminal::enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, cursor::Hide)?;
-        let _guard = TerminalGuard;
+        let _guard = TerminalGuard { clear_area };
 
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
         let mut state = PickerState::new(entries.len());
 
         loop {
-            terminal.draw(|frame| render_frame(frame, entries, state.selected(), PickerMode::Browse))?;
+            terminal.draw(|frame| {
+                render_frame(frame, entries, state.selected(), PickerMode::Browse, anchor_row)
+            })?;
 
             if let Event::Key(key) = event::read()? {
                 match state.handle_key(key) {
@@ -99,10 +108,18 @@ impl TerminalPicker {
             return Ok(None);
         }
 
+        let anchor_row = cursor::position()?.1;
+        let terminal_size = terminal::size()?;
+        let clear_area = panel_area(
+            Rect::new(0, 0, terminal_size.0, terminal_size.1),
+            anchor_row,
+            entries.len(),
+            PickerMode::ConfirmDelete,
+        );
         terminal::enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, cursor::Hide)?;
-        let _guard = TerminalGuard;
+        let _guard = TerminalGuard { clear_area };
 
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
@@ -110,7 +127,7 @@ impl TerminalPicker {
         let mut mode = PickerMode::Browse;
 
         loop {
-            terminal.draw(|frame| render_frame(frame, entries, state.selected(), mode))?;
+            terminal.draw(|frame| render_frame(frame, entries, state.selected(), mode, anchor_row))?;
 
             if let Event::Key(key) = event::read()? {
                 match mode {
@@ -161,8 +178,14 @@ impl PickerTheme {
     }
 }
 
-fn render_frame<T: PickerItem>(frame: &mut Frame, entries: &[T], selected: usize, mode: PickerMode) {
-    let area = panel_area(frame.area(), entries.len(), mode);
+fn render_frame<T: PickerItem>(
+    frame: &mut Frame,
+    entries: &[T],
+    selected: usize,
+    mode: PickerMode,
+    anchor_row: u16,
+) {
+    let area = panel_area(frame.area(), anchor_row, entries.len(), mode);
     ClearWidget.render(area, frame.buffer_mut());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -206,7 +229,7 @@ fn footer_text(mode: PickerMode) -> &'static str {
     }
 }
 
-fn panel_area(area: Rect, entry_count: usize, mode: PickerMode) -> Rect {
+fn panel_area(area: Rect, anchor_row: u16, entry_count: usize, mode: PickerMode) -> Rect {
     let desired_rows = match mode {
         PickerMode::Browse => entry_count.saturating_add(2),
         PickerMode::ConfirmDelete => entry_count.saturating_add(3),
@@ -215,9 +238,11 @@ fn panel_area(area: Rect, entry_count: usize, mode: PickerMode) -> Rect {
         .height
         .min(desired_rows.max(3) as u16)
         .max(1);
+    let preferred_top = anchor_row.saturating_add(1).min(area.height.saturating_sub(1));
+    let panel_top = preferred_top.min(area.height.saturating_sub(panel_height));
     Rect::new(
         area.x,
-        area.y + area.height.saturating_sub(panel_height),
+        area.y + panel_top,
         area.width,
         panel_height,
     )
@@ -287,18 +312,22 @@ fn render_confirmation_inline(
         .render(confirm_area, frame.buffer_mut());
 }
 
-struct TerminalGuard;
+struct TerminalGuard {
+    clear_area: Rect,
+}
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = terminal::disable_raw_mode();
         let mut stdout = io::stdout();
-        let _ = execute!(
-            stdout,
-            cursor::MoveToColumn(0),
-            Clear(ClearType::FromCursorDown),
-            cursor::Show
-        );
+        for row in 0..self.clear_area.height {
+            let _ = execute!(
+                stdout,
+                cursor::MoveTo(self.clear_area.x, self.clear_area.y + row),
+                Clear(ClearType::CurrentLine)
+            );
+        }
+        let _ = execute!(stdout, cursor::MoveTo(self.clear_area.x, self.clear_area.y), cursor::Show);
     }
 }
 
@@ -330,7 +359,7 @@ mod tests {
         height: u16,
     ) -> TestSurface {
         let theme = PickerTheme::omarchy();
-        let panel = panel_area(Rect::new(0, 0, 72, height), entries.len(), mode);
+        let panel = panel_area(Rect::new(0, 0, 72, height), 2, entries.len(), mode);
         let top_padding = panel.y as usize;
         let mut rows = Vec::with_capacity(top_padding + entries.len() + 3);
         rows.extend((0..top_padding).map(|_| TestRow {
@@ -408,10 +437,18 @@ mod tests {
 
     #[test]
     fn panel_area_is_anchored_to_bottom() {
-        let area = panel_area(Rect::new(0, 0, 72, 20), 3, PickerMode::Browse);
+        let area = panel_area(Rect::new(0, 0, 72, 20), 15, 3, PickerMode::Browse);
 
         assert_eq!(area.height, 5);
         assert_eq!(area.y, 15);
+    }
+
+    #[test]
+    fn panel_area_prefers_to_render_below_cursor() {
+        let area = panel_area(Rect::new(0, 0, 72, 20), 2, 3, PickerMode::Browse);
+
+        assert_eq!(area.height, 5);
+        assert_eq!(area.y, 3);
     }
 
     #[test]
