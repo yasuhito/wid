@@ -1,4 +1,4 @@
-use super::model::{DaySection, Entry, LogDocument};
+use super::model::{DaySection, Entry, EntryState, LogDocument};
 
 pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
     let mut document = LogDocument::default();
@@ -50,10 +50,12 @@ pub(crate) fn parse_day_heading(line: &str) -> Option<&str> {
 }
 
 pub(crate) fn parse_entry_line(line: &str) -> Option<Entry> {
-    let (done, rest) = if let Some(rest) = line.strip_prefix("- [ ] ") {
-        (false, rest)
+    let (state, rest) = if let Some(rest) = line.strip_prefix("- [ ] ") {
+        (EntryState::Pending, rest)
+    } else if let Some(rest) = line.strip_prefix("- [>] ") {
+        (EntryState::Active, rest)
     } else if let Some(rest) = line.strip_prefix("- [x] ") {
-        (true, rest)
+        (EntryState::Done, rest)
     } else {
         return None;
     };
@@ -69,7 +71,7 @@ pub(crate) fn parse_entry_line(line: &str) -> Option<Entry> {
     Some(Entry {
         time: time.to_string(),
         summary: summary.to_string(),
-        done,
+        state,
     })
 }
 

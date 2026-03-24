@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use format::format_entry;
-use model::Entry;
+use model::{Entry, EntryState};
 use parser::parse_log;
 use paths::{default_log_path, default_log_path_from_home};
 
@@ -50,10 +50,21 @@ fn format_entry_renders_bullet_line() {
     let entry = Entry {
         time: "11:32".into(),
         summary: "CI が落ちていたので修正".into(),
-        done: false,
+        state: EntryState::Pending,
     };
 
     assert_eq!(format_entry(&entry), "- [ ] 11:32 CI が落ちていたので修正");
+}
+
+#[test]
+fn format_entry_renders_active_checkbox_line() {
+    let entry = Entry {
+        time: "11:32".into(),
+        summary: "CI が落ちていたので修正".into(),
+        state: EntryState::Active,
+    };
+
+    assert_eq!(format_entry(&entry), "- [>] 11:32 CI が落ちていたので修正");
 }
 
 #[test]
@@ -61,7 +72,7 @@ fn format_entry_renders_completed_checkbox_line() {
     let entry = Entry {
         time: "11:32".into(),
         summary: "CI が落ちていたので修正".into(),
-        done: true,
+        state: EntryState::Done,
     };
 
     assert_eq!(format_entry(&entry), "- [x] 11:32 CI が落ちていたので修正");
@@ -89,18 +100,20 @@ fn default_log_path_reads_home_directory() {
 
 #[test]
 fn parse_markdown_sections_and_entries() {
-    let input = "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n";
+    let input = "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [>] 11:50 レビュー対応\n- [x] 12:10 実装方針を見直した\n";
 
     let doc = parse_log(input).unwrap();
 
     assert_eq!(doc.days.len(), 1);
     assert_eq!(doc.days[0].date, "2026-03-24");
-    assert_eq!(doc.days[0].entries.len(), 2);
+    assert_eq!(doc.days[0].entries.len(), 3);
     assert_eq!(doc.days[0].entries[0].time, "11:32");
     assert_eq!(doc.days[0].entries[0].summary, "CI が落ちていたので修正");
-    assert!(!doc.days[0].entries[0].done);
-    assert_eq!(doc.days[0].entries[1].summary, "実装方針を見直した");
-    assert!(doc.days[0].entries[1].done);
+    assert_eq!(doc.days[0].entries[0].state, EntryState::Pending);
+    assert_eq!(doc.days[0].entries[1].summary, "レビュー対応");
+    assert_eq!(doc.days[0].entries[1].state, EntryState::Active);
+    assert_eq!(doc.days[0].entries[2].summary, "実装方針を見直した");
+    assert_eq!(doc.days[0].entries[2].state, EntryState::Done);
 }
 
 #[test]

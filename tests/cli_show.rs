@@ -1,3 +1,29 @@
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
+#[allow(dead_code)]
+#[path = "../src/log/format.rs"]
+mod format;
+#[path = "../src/log/parser.rs"]
+mod parser;
+#[path = "../src/log/paths.rs"]
+mod paths;
+#[path = "../src/log/store.rs"]
+mod store;
+mod log {
+    pub mod format {
+        pub use crate::format::*;
+    }
+    pub mod model {
+        pub use crate::model::*;
+    }
+    pub mod store {
+        pub use crate::store::*;
+    }
+}
+#[path = "../src/commands/show.rs"]
+mod show_command;
+
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -44,4 +70,18 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
         "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n"
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
+#[test]
+fn render_document_with_color_highlights_active_and_done_entries() {
+    let document = parser::parse_log(
+        "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 active\n- [x] 12:10 done\n- [ ] 12:30 pending\n",
+    )
+    .unwrap();
+
+    let output = show_command::render_document(&document, true);
+
+    assert!(output.contains("\u{1b}["), "{output:?}");
+    assert!(output.contains("11:32 active"), "{output:?}");
+    assert!(output.contains("12:10 done"), "{output:?}");
 }

@@ -8,17 +8,29 @@
 wid
 wid done
 wid done -i
+wid focus -i
 wid rm -i
 wid now some text
 wid now
 ```
 
 `wid` prints the log.
-`wid done` marks the last unfinished entry as done.
+`wid done` marks the active entry as done, or the last pending entry when nothing is active.
 `wid done -i` lets you choose which unfinished entry to mark as done.
+`wid focus -i` lets you choose which pending entry becomes the active one.
 `wid rm -i` lets you choose which entry to delete after confirmation.
-`wid now some text` appends a new entry.
+`wid now some text` appends a new active entry.
 `wid now` prompts for a one-line summary on standard input.
+
+## Entry states
+
+```text
+[ ] pending
+[>] active
+[x] done
+```
+
+`wid` keeps at most one active entry in the log.
 
 ## Storage
 

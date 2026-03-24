@@ -97,6 +97,22 @@ fn done_command_marks_last_unfinished_entry() {
 }
 
 #[test]
+fn done_command_marks_active_entry_first() {
+    let home = unique_temp_dir("done-mark-active-first");
+    write_log(
+        &home,
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [>] 12:10 実装方針を見直した\n",
+    );
+
+    let output = run_wid(&home, &["done"], None);
+
+    assert!(output.status.success(), "{output:?}");
+    let contents = fs::read_to_string(log_path(&home)).unwrap();
+    assert!(contents.contains("- [ ] 11:32 CI が落ちていたので修正"), "{contents}");
+    assert!(contents.contains("- [x] 12:10 実装方針を見直した"), "{contents}");
+}
+
+#[test]
 fn done_command_skips_already_done_trailing_entries() {
     let home = unique_temp_dir("done-skip-trailing");
     write_log(

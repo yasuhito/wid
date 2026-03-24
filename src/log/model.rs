@@ -1,8 +1,38 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EntryState {
+    #[default]
+    Pending,
+    Active,
+    Done,
+}
+
+impl EntryState {
+    pub fn checkbox(self) -> &'static str {
+        match self {
+            Self::Pending => "[ ]",
+            Self::Active => "[>]",
+            Self::Done => "[x]",
+        }
+    }
+
+    pub fn is_pending(self) -> bool {
+        matches!(self, Self::Pending)
+    }
+
+    pub fn is_active(self) -> bool {
+        matches!(self, Self::Active)
+    }
+
+    pub fn is_done(self) -> bool {
+        matches!(self, Self::Done)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Entry {
     pub time: String,
     pub summary: String,
-    pub done: bool,
+    pub state: EntryState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

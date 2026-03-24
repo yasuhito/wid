@@ -15,6 +15,10 @@ pub enum Commands {
         #[arg(short = 'i', long = "interactive")]
         interactive: bool,
     },
+    Focus {
+        #[arg(short = 'i', long = "interactive")]
+        interactive: bool,
+    },
     Rm {
         #[arg(short = 'i', long = "interactive")]
         interactive: bool,
@@ -29,6 +33,7 @@ pub fn run() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Done { interactive }) => commands::done::run(interactive),
+        Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
         Some(Commands::Rm { interactive }) => commands::rm::run(interactive),
         Some(Commands::Now { text }) => commands::now::run(text),
         None => commands::show::run(),

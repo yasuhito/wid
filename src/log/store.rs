@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 
 use super::format::{format_day_section, format_entry, format_log};
-use super::model::{DaySection, Entry, LogDocument, LogEntry, UnfinishedEntry};
+use super::model::{DaySection, Entry, EntryState, LogDocument, LogEntry, UnfinishedEntry};
 use super::parser::{parse_day_heading, parse_entry_line, parse_log};
 use super::paths::default_log_path;
 
@@ -54,30 +54,30 @@ pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> R
     let entry = Entry {
         time: time.to_string(),
         summary: summary.to_string(),
-        done: false,
+        state: EntryState::Active,
     };
     append_log_entry_to_path(path, date, &entry)
 }
 
-pub fn mark_last_unfinished_entry_done(path: &Path, timestamp: &str) -> Result<()> {
+pub fn mark_last_unfinished_entry_done(path: &Path, _timestamp: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
     }
 
     let contents = read_log_contents(path)?;
+    if let Some(target) = collect_active_entry_from_contents(&contents) {
+        return mark_entry_done_with_contents(path, &contents, target.start, target.end);
+    }
+
     let Some(target) = collect_unfinished_entries_from_contents(&contents).last().cloned() else {
         return Err(anyhow!("no unfinished entry found"));
     };
 
-    mark_unfinished_entry_done_with_contents(path, &contents, &target, timestamp)
+    mark_entry_done_with_contents(path, &contents, target.start, target.end)
 }
 
-pub fn mark_unfinished_entry_done(
-    path: &Path,
-    target: &UnfinishedEntry,
-    timestamp: &str,
-) -> Result<()> {
+pub fn mark_unfinished_entry_done(path: &Path, target: &UnfinishedEntry, _timestamp: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
@@ -94,7 +94,7 @@ pub fn mark_unfinished_entry_done(
         })
         .ok_or_else(|| anyhow!("selected entry changed before it could be completed"))?;
 
-    mark_unfinished_entry_done_with_contents(path, &contents, &fresh_target, timestamp)
+    mark_entry_done_with_contents(path, &contents, fresh_target.start, fresh_target.end)
 }
 
 pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
@@ -115,6 +115,27 @@ pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
         .ok_or_else(|| anyhow!("selected entry changed before it could be removed"))?;
 
     delete_entry_with_contents(path, &contents, &fresh_target)
+}
+
+pub fn focus_pending_entry(path: &Path, target: &UnfinishedEntry) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let fresh_target = collect_unfinished_entries_from_contents(&contents)
+        .into_iter()
+        .find(|entry| {
+            entry.ordinal == target.ordinal
+                && entry.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+        })
+        .ok_or_else(|| anyhow!("selected entry changed before it could be focused"))?;
+
+    let demoted = demote_active_entries_in_contents(&contents);
+    replace_entry_state_with_contents(path, &demoted, fresh_target.start, fresh_target.end, EntryState::Active)
 }
 
 fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
@@ -151,7 +172,7 @@ fn collect_unfinished_entries_from_contents(contents: &str) -> Vec<UnfinishedEnt
             current_date = None;
         } else if let Some(date) = current_date.as_ref() {
             if let Some(entry) = parse_entry_line(line) {
-                if !entry.done {
+                if entry.state.is_pending() {
                     entries.push(UnfinishedEntry {
                         date: date.clone(),
                         time: entry.time,
@@ -202,21 +223,26 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
     entries
 }
 
-fn mark_unfinished_entry_done_with_contents(
+fn mark_entry_done_with_contents(path: &Path, contents: &str, start: usize, end: usize) -> Result<()> {
+    replace_entry_state_with_contents(path, contents, start, end, EntryState::Done)
+}
+
+fn replace_entry_state_with_contents(
     path: &Path,
     contents: &str,
-    target: &UnfinishedEntry,
-    timestamp: &str,
+    start: usize,
+    end: usize,
+    state: EntryState,
 ) -> Result<()> {
-    let mut updated = String::with_capacity(contents.len() + timestamp.len() + 16);
-    updated.push_str(&contents[..target.start]);
-    let segment = &contents[target.start..target.end];
+    let mut updated = String::with_capacity(contents.len() + 4);
+    updated.push_str(&contents[..start]);
+    let segment = &contents[start..end];
     let body = segment.trim_end_matches(['\r', '\n']);
     let ending = &segment[body.len()..];
-    let updated_body = body.replacen("[ ]", "[x]", 1);
+    let updated_body = replace_checkbox(body, state);
     updated.push_str(&updated_body);
     updated.push_str(ending);
-    updated.push_str(&contents[target.end..]);
+    updated.push_str(&contents[end..]);
 
     fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
@@ -238,7 +264,10 @@ fn append_log_entry_to_path(path: &Path, date: &str, entry: &Entry) -> Result<()
     }
 
     match fs::read_to_string(path) {
-        Ok(contents) => append_to_existing_log(path, &contents, date, entry),
+        Ok(contents) => {
+            let contents = demote_active_entries_in_contents(&contents);
+            append_to_existing_log(path, &contents, date, entry)
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             write_new_log(path, date, entry)
         }
@@ -341,6 +370,43 @@ fn newline_ending(contents: &str) -> &str {
         "\r\n"
     } else {
         "\n"
+    }
+}
+
+fn collect_active_entry_from_contents(contents: &str) -> Option<LogEntry> {
+    collect_entries_from_contents(contents)
+        .into_iter()
+        .find(|entry| entry_line_state(contents, entry.start, entry.end) == Some(EntryState::Active))
+}
+
+fn demote_active_entries_in_contents(contents: &str) -> String {
+    let mut updated = String::with_capacity(contents.len());
+    for segment in contents.split_inclusive('\n') {
+        let body = segment.trim_end_matches(['\r', '\n']);
+        let ending = &segment[body.len()..];
+        if body.starts_with("- [>] ") {
+            updated.push_str(&body.replacen("[>]", "[ ]", 1));
+        } else {
+            updated.push_str(body);
+        }
+        updated.push_str(ending);
+    }
+
+    updated
+}
+
+fn entry_line_state(contents: &str, start: usize, end: usize) -> Option<EntryState> {
+    let line = contents[start..end].trim_end();
+    parse_entry_line(line).map(|entry| entry.state)
+}
+
+fn replace_checkbox(line: &str, state: EntryState) -> String {
+    if line.contains("[>]") {
+        line.replacen("[>]", state.checkbox(), 1)
+    } else if line.contains("[x]") {
+        line.replacen("[x]", state.checkbox(), 1)
+    } else {
+        line.replacen("[ ]", state.checkbox(), 1)
     }
 }
 
