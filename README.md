@@ -93,6 +93,37 @@ That prints the whole log so you can see your current flow, including notes unde
 
 The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
 
+## Build and Install
+
+`wid` is a standard Rust CLI project.
+
+Build it locally:
+
+```bash
+cargo build
+```
+
+Run it without installing:
+
+```bash
+cargo run --
+cargo run -- now investigate failing CI on md-edit
+```
+
+Install it into your local Cargo bin directory:
+
+```bash
+cargo install --path .
+```
+
+That places the binary in:
+
+```text
+~/.cargo/bin/wid
+```
+
+If `~/.cargo/bin` is in your `PATH`, you can then run `wid` directly.
+
 ## Why This Helps
 
 `wid` is built around a simple idea: your attention should have a visible home.
