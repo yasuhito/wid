@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports)]
+
 #[allow(dead_code)]
 #[path = "../src/log/model.rs"]
 mod model;
