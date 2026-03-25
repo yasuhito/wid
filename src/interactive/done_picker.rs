@@ -158,7 +158,7 @@ impl Picker for TerminalPicker {
         let clear_area = panel_area(
             Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
             anchor_row,
-            entries.len(),
+            picker_content_lines(entries),
             PickerMode::Browse,
         );
         terminal::enable_raw_mode()?;
@@ -328,7 +328,12 @@ fn render_frame<T: PickerItem>(
     mode: PickerMode,
     anchor_row: u16,
 ) {
-    let area = panel_area(frame.area(), anchor_row, entries.len(), mode);
+    let area = panel_area(
+        frame.area(),
+        anchor_row,
+        picker_content_lines(entries),
+        mode,
+    );
     ClearWidget.render(area, frame.buffer_mut());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -486,6 +491,10 @@ fn done_picker_content_lines(entries: &[LogEntry]) -> usize {
     entries.iter().map(LogEntry::display_line_count).sum()
 }
 
+fn picker_content_lines<T: PickerItem>(entries: &[T]) -> usize {
+    entries.iter().map(PickerItem::line_count).sum()
+}
+
 fn render_confirmation_inline(
     frame: &mut Frame,
     area: Rect,
@@ -567,9 +576,14 @@ mod tests {
         height: u16,
     ) -> TestSurface {
         let theme = PickerTheme::omarchy();
-        let panel = panel_area(Rect::new(0, 0, 72, height), 2, entries.len(), mode);
+        let panel = panel_area(
+            Rect::new(0, 0, 72, height),
+            2,
+            picker_content_lines(entries),
+            mode,
+        );
         let top_padding = panel.y as usize;
-        let mut rows = Vec::with_capacity(top_padding + entries.len() + 3);
+        let mut rows = Vec::with_capacity(top_padding + picker_content_lines(entries) + 3);
         rows.extend((0..top_padding).map(|_| TestRow {
             text: String::new(),
             fg: Color::Reset,
@@ -640,6 +654,27 @@ mod tests {
         let rendered = render_test_surface(&entries, 0, PickerMode::Browse, 72, 8);
 
         assert!(surface_text(&rendered).contains("j/Down next"));
+        assert!(surface_text(&rendered).contains("Enter confirm"));
+    }
+
+    #[test]
+    fn ratatui_render_uses_multiline_item_height_for_generic_picker() {
+        let entries = vec![crate::log::model::LogEntry {
+            date: "2026-03-25".into(),
+            time: "09:15".into(),
+            summary: "selected".into(),
+            tags: Vec::new(),
+            notes: vec!["first note".into(), "second note".into()],
+            state: crate::log::model::EntryState::Pending,
+            ordinal: 0,
+            start: 0,
+            end: 0,
+        }];
+
+        let rendered = render_test_surface(&entries, 0, PickerMode::Browse, 72, 8);
+
+        assert!(surface_text(&rendered).contains("first note"));
+        assert!(surface_text(&rendered).contains("second note"));
         assert!(surface_text(&rendered).contains("Enter confirm"));
     }
 

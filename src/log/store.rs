@@ -621,6 +621,27 @@ pub fn append_note_by_transient_id(path: &Path, id: &str, note: &str) -> Result<
     Err(anyhow!("item changed or not found"))
 }
 
+pub fn append_note_to_focus_entry(path: &Path, target: &FocusEntry, note: &str) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if day.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+                && entry.tags == target.tags
+                && entry.state == target.state
+            {
+                append_note_to_entry(entry, note)?;
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("selected entry changed before it could be noted"))
+}
+
 pub fn archive_done_entries_at_paths(log_path: &Path, archive_path: &Path) -> Result<()> {
     let log_document = load_log_at_path(log_path)?;
     let archive_document = load_log_at_path(archive_path)?;

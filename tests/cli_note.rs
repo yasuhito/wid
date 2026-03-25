@@ -1,5 +1,7 @@
 #![allow(dead_code, unused_imports)]
 
+#[path = "../src/interactive/done_picker.rs"]
+mod done_picker;
 #[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
@@ -35,6 +37,11 @@ mod commands {
     }
     pub mod show {
         pub use crate::show_command::*;
+    }
+}
+mod interactive {
+    pub mod done_picker {
+        pub use crate::done_picker::*;
     }
 }
 
@@ -225,6 +232,109 @@ fn note_reads_single_line_from_stdin_when_no_args_are_given() {
 }
 
 #[test]
+fn note_command_interactive_appends_to_selected_entry() {
+    let dir = unique_temp_dir("note-interactive");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [>] 08:01 active item\n  - existing active note\n- [x] 08:06 done item\n  - existing done note\n- [ ] 08:12 pending item\n  - existing pending note\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(2));
+    let mut editor = FakeSummaryEditor::new("selected note");
+    note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "## 2026-03-25\n\n- [>] 08:01 active item\n  - existing active note\n- [x] 08:06 done item\n  - existing done note\n- [ ] 08:12 pending item\n  - existing pending note\n  - selected note\n"
+    );
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-25 [>] 08:01 active item\n  📝 existing active note".to_string(),
+            "2026-03-25 [x] 08:06 done item\n  📝 existing done note".to_string(),
+            "2026-03-25 [ ] 08:12 pending item\n  📝 existing pending note".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
+fn note_command_interactive_cancels_without_changes() {
+    let dir = unique_temp_dir("note-interactive-cancel");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "## 2026-03-25\n\n- [ ] 08:12 pending item\n").unwrap();
+
+    let before = fs::read_to_string(&path).unwrap();
+    let mut picker = FakePicker::new(None);
+    let mut editor = FakeSummaryEditor::new("unused");
+    note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
+fn note_command_interactive_errors_when_there_is_no_entry() {
+    let dir = unique_temp_dir("note-interactive-no-entry");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "").unwrap();
+
+    let mut picker = FakePicker::new(None);
+    let mut editor = FakeSummaryEditor::new("unused");
+    let error = note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap_err();
+
+    assert!(format!("{error:#}").contains("entry"), "{error:#}");
+}
+
+#[test]
+fn note_command_interactive_uses_last_open_item_as_default_when_no_active_exists() {
+    let dir = unique_temp_dir("note-interactive-default");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [ ] 08:01 first pending\n- [ ] 08:12 second pending\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    let mut editor = FakeSummaryEditor::new("unused");
+    note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(picker.default_selected, Some(1));
+}
+
+#[test]
+fn note_command_interactive_shows_done_items_but_defaults_to_latest_open_item() {
+    let dir = unique_temp_dir("note-interactive-done-visible");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [ ] 08:01 first pending\n  - first pending note\n- [x] 08:12 done item\n  - done note\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    let mut editor = FakeSummaryEditor::new("unused");
+    note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-25 [ ] 08:01 first pending\n  📝 first pending note".to_string(),
+            "2026-03-25 [x] 08:12 done item\n  📝 done note".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
 fn note_by_id_reads_single_line_from_stdin_when_no_args_are_given() {
     let home = unique_temp_dir("note-by-id-stdin");
     let log_path = home.join(".local/share/wid/log.md");
@@ -275,4 +385,57 @@ fn note_rejects_duplicate_text_for_same_item() {
         format!("{error:#}").contains("duplicate note text for item"),
         "{error:#}"
     );
+}
+
+struct FakePicker {
+    result: Option<usize>,
+    items: Vec<String>,
+    default_selected: Option<usize>,
+}
+
+impl FakePicker {
+    fn new(result: Option<usize>) -> Self {
+        Self {
+            result,
+            items: Vec::new(),
+            default_selected: None,
+        }
+    }
+}
+
+impl done_picker::Picker for FakePicker {
+    fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
+        self.pick_with_selected(entries, 0)
+    }
+
+    fn pick_with_selected<T: model::PickerItem>(
+        &mut self,
+        entries: &[T],
+        selected: usize,
+    ) -> anyhow::Result<Option<usize>> {
+        self.items = entries
+            .iter()
+            .map(model::PickerItem::display_label)
+            .collect();
+        self.default_selected = Some(selected);
+        Ok(self.result)
+    }
+}
+
+struct FakeSummaryEditor {
+    text: String,
+}
+
+impl FakeSummaryEditor {
+    fn new(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+        }
+    }
+}
+
+impl note_command::NoteEditor for FakeSummaryEditor {
+    fn edit_note(&mut self) -> anyhow::Result<String> {
+        Ok(self.text.clone())
+    }
 }

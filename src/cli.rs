@@ -21,6 +21,8 @@ Examples:
     Print the log as JSON for agents or scripts.
   wid done --id 8f3c2d1a6b4e
     Mark a specific item as done from a transient id.
+  wid note -i
+    Choose an item interactively and append a note to it.
   wid tag add --id 8f3c2d1a6b4e @wid
     Add tags to a specific item by transient id.
 
@@ -179,12 +181,21 @@ Examples:
     Add a note to the active item, or the latest open item.
   wid note --id 8f3c2d1a6b4e waiting for CI to finish
     Add a note to a specific item by transient id.
+  wid note -i
+    Choose which item should receive the note.
   echo '--json shape' | wid note --id 8f3c2d1a6b4e
     Add a note from standard input to a specific item.
   wid note
     Prompt for one line of input and add it as a note."
     )]
     Note {
+        #[arg(
+            short = 'i',
+            long = "interactive",
+            help = "Choose an item interactively",
+            conflicts_with = "id"
+        )]
+        interactive: bool,
         #[arg(
             help = "The note text to add. If omitted, wid prompts for one line of input.",
             allow_hyphen_values = true
@@ -255,7 +266,11 @@ pub fn run() -> anyhow::Result<()> {
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
         Some(Commands::Rm { interactive, id }) => commands::rm::run(interactive, id),
         Some(Commands::Now { text }) => commands::now::run(text),
-        Some(Commands::Note { text, id }) => commands::note::run(text, id),
+        Some(Commands::Note {
+            text,
+            id,
+            interactive,
+        }) => commands::note::run(text, id, interactive),
         Some(Commands::Open { archive }) => commands::open::run(archive),
         Some(Commands::Tag(TagCommands::Add { id, tags })) => {
             commands::tag::run(TagAction::Add, id, tags)
@@ -304,7 +319,7 @@ mod tests {
             .expect("note should allow hyphen-prefixed note text after --id");
 
         match cli.command {
-            Some(Commands::Note { id, text }) => {
+            Some(Commands::Note { id, text, .. }) => {
                 assert_eq!(id.as_deref(), Some("entry_123"));
                 assert_eq!(text, vec!["--json", "shape"]);
             }

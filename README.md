@@ -43,6 +43,7 @@ While working, you may want to leave yourself little breadcrumbs so that future-
 ```bash
 wid note failure only happens on ubuntu-latest
 wid note probably related to cache invalidation
+wid note -i
 ```
 
 Later, an agent finishes another task and you need to switch. You can jump back to the latest item:

@@ -91,6 +91,10 @@ pub struct LogDocument {
 pub trait PickerItem {
     fn display_label(&self) -> String;
 
+    fn line_count(&self) -> usize {
+        1
+    }
+
     fn delete_prompt(&self) -> &'static str {
         "Delete selected entry? [y/N]"
     }
@@ -168,6 +172,17 @@ pub struct LogEntry {
 }
 
 impl LogEntry {
+    pub fn transient_id(&self) -> String {
+        let digest = md5::compute(format!(
+            "{}\n{}\n{}\n{}",
+            self.date,
+            self.time,
+            self.state.as_str(),
+            self.summary
+        ));
+        format!("{digest:x}").chars().take(12).collect()
+    }
+
     pub fn display_label(&self) -> String {
         self.display_label_with_state(self.state)
     }
@@ -192,6 +207,10 @@ impl LogEntry {
 impl PickerItem for LogEntry {
     fn display_label(&self) -> String {
         self.display_label()
+    }
+
+    fn line_count(&self) -> usize {
+        self.display_line_count()
     }
 }
 
