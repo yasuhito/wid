@@ -66,27 +66,27 @@ fn log_path(home: &Path) -> PathBuf {
 #[test]
 fn add_command_appends_pending_entry() {
     let home = unique_temp_dir("add-join");
-    let output = run_wid(&home, &["add", "あとで", "確認する"], None);
+    let output = run_wid(&home, &["add", "review", "later"], None);
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("## "), "{stdout}");
     assert!(stdout.contains("- [ ] "), "{stdout}");
-    assert!(stdout.contains("あとで 確認する"), "{stdout}");
+    assert!(stdout.contains("review later"), "{stdout}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(contents.contains("- [ ] "), "{contents}");
-    assert!(contents.contains("あとで 確認する"), "{contents}");
+    assert!(contents.contains("review later"), "{contents}");
 }
 
 #[test]
 fn add_command_reads_single_line_when_no_args_are_given() {
     let home = unique_temp_dir("add-stdin");
-    let output = run_wid(&home, &["add"], Some("あとで整理する\n"));
+    let output = run_wid(&home, &["add"], Some("organize later\n"));
 
     assert!(output.status.success(), "{output:?}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(contents.contains("- [ ] "), "{contents}");
-    assert!(contents.contains("あとで整理する"), "{contents}");
+    assert!(contents.contains("organize later"), "{contents}");
 }
 
 #[test]

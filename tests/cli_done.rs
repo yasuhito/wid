@@ -101,7 +101,7 @@ fn done_command_marks_last_unfinished_entry() {
     let home = unique_temp_dir("done-mark-last");
     write_log(
         &home,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 11:48 レビュー指摘を反映\n- [ ] 12:10 実装方針を見直した\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 11:48 address review feedback\n- [ ] 12:10 rework implementation plan\n",
     );
 
     let output = run_wid(&home, &["done"], None);
@@ -109,11 +109,11 @@ fn done_command_marks_last_unfinished_entry() {
     assert!(output.status.success(), "{output:?}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(
-        contents.contains("- [x] 12:10 実装方針を見直した"),
+        contents.contains("- [x] 12:10 rework implementation plan"),
         "{contents}"
     );
     assert!(
-        contents.contains("- [x] 11:48 レビュー指摘を反映"),
+        contents.contains("- [x] 11:48 address review feedback"),
         "{contents}"
     );
 }
@@ -186,7 +186,7 @@ fn done_command_marks_active_entry_first() {
     let home = unique_temp_dir("done-mark-active-first");
     write_log(
         &home,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [>] 12:10 実装方針を見直した\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [>] 12:10 rework implementation plan\n",
     );
 
     let output = run_wid(&home, &["done"], None);
@@ -194,16 +194,16 @@ fn done_command_marks_active_entry_first() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("- [x] 12:10 実装方針を見直した"),
+        stdout.contains("- [x] 12:10 rework implementation plan"),
         "{stdout}"
     );
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(
-        contents.contains("- [ ] 11:32 CI が落ちていたので修正"),
+        contents.contains("- [ ] 11:32 fix failing CI"),
         "{contents}"
     );
     assert!(
-        contents.contains("- [x] 12:10 実装方針を見直した"),
+        contents.contains("- [x] 12:10 rework implementation plan"),
         "{contents}"
     );
 }
@@ -213,7 +213,7 @@ fn done_command_skips_already_done_trailing_entries() {
     let home = unique_temp_dir("done-skip-trailing");
     write_log(
         &home,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 11:48 レビュー指摘を反映\n- [x] 12:10 実装方針を見直した\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 11:48 address review feedback\n- [x] 12:10 rework implementation plan\n",
     );
 
     let output = run_wid(&home, &["done"], None);
@@ -221,15 +221,15 @@ fn done_command_skips_already_done_trailing_entries() {
     assert!(output.status.success(), "{output:?}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(
-        contents.contains("- [x] 11:32 CI が落ちていたので修正"),
+        contents.contains("- [x] 11:32 fix failing CI"),
         "{contents}"
     );
     assert!(
-        contents.contains("- [x] 11:48 レビュー指摘を反映"),
+        contents.contains("- [x] 11:48 address review feedback"),
         "{contents}"
     );
     assert!(
-        contents.contains("- [x] 12:10 実装方針を見直した"),
+        contents.contains("- [x] 12:10 rework implementation plan"),
         "{contents}"
     );
 }
@@ -239,7 +239,7 @@ fn done_command_errors_when_no_unfinished_entry_exists() {
     let home = unique_temp_dir("done-no-open-entry");
     write_log(
         &home,
-        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 CI が落ちていたので修正\n",
+        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 fix failing CI\n",
     );
 
     let output = run_wid(&home, &["done"], None);
@@ -564,7 +564,7 @@ fn done_store_updates_last_unfinished_entry_in_place() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 11:48 レビュー指摘を反映\n- [ ] 12:10 実装方針を見直した\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 11:48 address review feedback\n- [ ] 12:10 rework implementation plan\n",
     )
     .unwrap();
 
@@ -572,7 +572,7 @@ fn done_store_updates_last_unfinished_entry_in_place() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 11:48 レビュー指摘を反映\n- [x] 12:10 実装方針を見直した\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 11:48 address review feedback\n- [x] 12:10 rework implementation plan\n"
     );
 }
 
@@ -583,7 +583,7 @@ fn done_store_skips_trailing_done_entries() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 11:48 レビュー指摘を反映\n- [x] 12:10 実装方針を見直した\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 11:48 address review feedback\n- [x] 12:10 rework implementation plan\n",
     )
     .unwrap();
 
@@ -591,7 +591,7 @@ fn done_store_skips_trailing_done_entries() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 CI が落ちていたので修正\n- [x] 11:48 レビュー指摘を反映\n- [x] 12:10 実装方針を見直した\n"
+        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 fix failing CI\n- [x] 11:48 address review feedback\n- [x] 12:10 rework implementation plan\n"
     );
 }
 
@@ -621,7 +621,7 @@ fn done_store_ignores_later_non_entry_bullet_lines() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [ ] 12:10 実装方針を見直した\n- note: follow-up detail from the same day\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [ ] 12:10 rework implementation plan\n- note: follow-up detail from the same day\n",
     )
     .unwrap();
 
@@ -629,7 +629,7 @@ fn done_store_ignores_later_non_entry_bullet_lines() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [x] 12:10 実装方針を見直した\n- note: follow-up detail from the same day\n"
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 12:10 rework implementation plan\n- note: follow-up detail from the same day\n"
     );
 }
 
@@ -640,7 +640,7 @@ fn done_store_ignores_entry_looking_lines_before_day_section() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 12:10 実装方針を見直した\n\n## Notes\n\n- [ ] 11:32 outside any day section\n",
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 12:10 rework implementation plan\n\n## Notes\n\n- [ ] 11:32 outside any day section\n",
     )
     .unwrap();
 
@@ -648,7 +648,7 @@ fn done_store_ignores_entry_looking_lines_before_day_section() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- [x] 12:10 実装方針を見直した\n\n## Notes\n\n- [ ] 11:32 outside any day section\n"
+        "# wid log\n\n## 2026-03-24\n\n- [x] 12:10 rework implementation plan\n\n## Notes\n\n- [ ] 11:32 outside any day section\n"
     );
 }
 
@@ -659,7 +659,7 @@ fn done_store_errors_when_no_unfinished_entry_exists() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 CI が落ちていたので修正\n",
+        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 fix failing CI\n",
     )
     .unwrap();
 

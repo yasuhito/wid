@@ -152,7 +152,7 @@ fn focus_interactive_updates_checkbox_not_summary_marker() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-25\n\n- [>] 07:39 README.md を追加\n- [ ] 08:01 rm -i でアイテムの [ ] と [x], [>] も表示するようにする。\n",
+        "# wid log\n\n## 2026-03-25\n\n- [>] 07:39 add README.md\n- [ ] 08:01 show [ ], [x], and [>] in rm -i\n",
     )
     .unwrap();
 
@@ -161,7 +161,7 @@ fn focus_interactive_updates_checkbox_not_summary_marker() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-25\n\n- [ ] 07:39 README.md を追加\n- [>] 08:01 rm -i でアイテムの [ ] と [x], [>] も表示するようにする。\n"
+        "# wid log\n\n## 2026-03-25\n\n- [ ] 07:39 add README.md\n- [>] 08:01 show [ ], [x], and [>] in rm -i\n"
     );
 }
 

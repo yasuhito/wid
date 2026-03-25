@@ -51,36 +51,36 @@ impl Drop for HomeGuard {
 fn format_entry_renders_bullet_line() {
     let entry = Entry {
         time: "11:32".into(),
-        summary: "CI が落ちていたので修正".into(),
+        summary: "fix failing CI".into(),
         state: EntryState::Pending,
         notes: Vec::new(),
     };
 
-    assert_eq!(format_entry(&entry), "- [ ] 11:32 CI が落ちていたので修正");
+    assert_eq!(format_entry(&entry), "- [ ] 11:32 fix failing CI");
 }
 
 #[test]
 fn format_entry_renders_active_checkbox_line() {
     let entry = Entry {
         time: "11:32".into(),
-        summary: "CI が落ちていたので修正".into(),
+        summary: "fix failing CI".into(),
         state: EntryState::Active,
         notes: Vec::new(),
     };
 
-    assert_eq!(format_entry(&entry), "- [>] 11:32 CI が落ちていたので修正");
+    assert_eq!(format_entry(&entry), "- [>] 11:32 fix failing CI");
 }
 
 #[test]
 fn format_entry_renders_completed_checkbox_line() {
     let entry = Entry {
         time: "11:32".into(),
-        summary: "CI が落ちていたので修正".into(),
+        summary: "fix failing CI".into(),
         state: EntryState::Done,
         notes: Vec::new(),
     };
 
-    assert_eq!(format_entry(&entry), "- [x] 11:32 CI が落ちていたので修正");
+    assert_eq!(format_entry(&entry), "- [x] 11:32 fix failing CI");
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn default_log_path_reads_home_directory() {
 
 #[test]
 fn parse_markdown_sections_and_entries() {
-    let input = "## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n  - 補足メモ\n- [>] 11:50 レビュー対応\n- [x] 12:10 実装方針を見直した\n";
+    let input = "## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n  - follow-up note\n- [>] 11:50 address review feedback\n- [x] 12:10 rework implementation plan\n";
 
     let doc = parse_log(input).unwrap();
 
@@ -113,25 +113,25 @@ fn parse_markdown_sections_and_entries() {
     assert_eq!(doc.days[0].date, "2026-03-24");
     assert_eq!(doc.days[0].entries.len(), 3);
     assert_eq!(doc.days[0].entries[0].time, "11:32");
-    assert_eq!(doc.days[0].entries[0].summary, "CI が落ちていたので修正");
+    assert_eq!(doc.days[0].entries[0].summary, "fix failing CI");
     assert_eq!(doc.days[0].entries[0].state, EntryState::Pending);
-    assert_eq!(doc.days[0].entries[0].notes, vec!["補足メモ"]);
-    assert_eq!(doc.days[0].entries[1].summary, "レビュー対応");
+    assert_eq!(doc.days[0].entries[0].notes, vec!["follow-up note"]);
+    assert_eq!(doc.days[0].entries[1].summary, "address review feedback");
     assert_eq!(doc.days[0].entries[1].state, EntryState::Active);
-    assert_eq!(doc.days[0].entries[2].summary, "実装方針を見直した");
+    assert_eq!(doc.days[0].entries[2].summary, "rework implementation plan");
     assert_eq!(doc.days[0].entries[2].state, EntryState::Done);
 }
 
 #[test]
 fn parse_ignores_unrelated_lines() {
-    let input = "random note\n## 2026-03-24\n\n- [ ] 09:00 着手\nnot markdown\n- [x] 09:30 進行\n";
+    let input = "random note\n## 2026-03-24\n\n- [ ] 09:00 start task\nnot markdown\n- [x] 09:30 in progress\n";
 
     let doc = parse_log(input).unwrap();
 
     assert_eq!(doc.days.len(), 1);
     assert_eq!(doc.days[0].entries.len(), 2);
-    assert_eq!(doc.days[0].entries[0].summary, "着手");
-    assert_eq!(doc.days[0].entries[1].summary, "進行");
+    assert_eq!(doc.days[0].entries[0].summary, "start task");
+    assert_eq!(doc.days[0].entries[1].summary, "in progress");
 }
 
 #[test]
@@ -145,25 +145,25 @@ fn parse_rejects_old_done_syntax() {
 
 #[test]
 fn parse_non_date_headings_end_the_current_day_section() {
-    let input = "## 2026-03-24\n\n- [ ] 09:00 着手\n\n## Notes\n\n- [ ] 09:30 無視される\n";
+    let input = "## 2026-03-24\n\n- [ ] 09:00 start task\n\n## Notes\n\n- [ ] 09:30 ignored item\n";
 
     let doc = parse_log(input).unwrap();
 
     assert_eq!(doc.days.len(), 1);
     assert_eq!(doc.days[0].entries.len(), 1);
-    assert_eq!(doc.days[0].entries[0].summary, "着手");
+    assert_eq!(doc.days[0].entries[0].summary, "start task");
 }
 
 #[test]
 fn parse_accepts_day_headings_and_entries_with_trailing_spaces() {
-    let input = "## 2026-03-24   \n\n- [ ] 09:00 着手   \n";
+    let input = "## 2026-03-24   \n\n- [ ] 09:00 start task   \n";
 
     let doc = parse_log(input).unwrap();
 
     assert_eq!(doc.days.len(), 1);
     assert_eq!(doc.days[0].date, "2026-03-24");
     assert_eq!(doc.days[0].entries.len(), 1);
-    assert_eq!(doc.days[0].entries[0].summary, "着手");
+    assert_eq!(doc.days[0].entries[0].summary, "start task");
 }
 
 #[test]

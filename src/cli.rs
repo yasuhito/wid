@@ -5,7 +5,23 @@ use crate::commands;
 #[derive(Debug, Parser)]
 #[command(
     name = "wid",
-    about = "Track what you're doing in a global markdown log"
+    about = "Track what you're doing in a global markdown log",
+    after_help = "\
+Examples:
+  wid
+    Show the current log.
+  wid add add examples to md-edit help
+    Add a pending item without changing focus.
+  wid now support note editing in rm -i
+    Add a new active item and focus it immediately.
+  wid done -i
+    Toggle done state interactively.
+  wid --json
+    Print the log as JSON for agents or scripts.
+  wid done --id 8f3c2d1a6b4e
+    Mark a specific item as done from a transient id.
+
+Run 'wid <command> --help' for details."
 )]
 pub struct Cli {
     #[arg(long = "json", help = "Print the log as JSON")]
@@ -17,14 +33,38 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Add a pending item without changing the current focus")]
+    #[command(
+        about = "Add a pending item without changing the current focus",
+        after_help = "\
+Examples:
+  wid add add examples to md-edit help
+    Add a pending item to the backlog.
+  wid add
+    Prompt for one line of input and add it as pending."
+    )]
     Add {
         #[arg(help = "The item text to add. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
     },
-    #[command(about = "Move done items into the archive log")]
+    #[command(
+        about = "Move done items into the archive log",
+        after_help = "\
+Examples:
+  wid archive
+    Move all done items from log.md into archive.md."
+    )]
     Archive,
-    #[command(about = "Mark an item as done")]
+    #[command(
+        about = "Mark an item as done",
+        after_help = "\
+Examples:
+  wid done
+    Mark the active item, or the latest open item, as done.
+  wid done -i
+    Toggle done state for multiple items interactively.
+  wid done --id 8f3c2d1a6b4e
+    Mark a specific item as done from a transient id."
+    )]
     Done {
         #[arg(
             short = 'i',
@@ -36,7 +76,15 @@ pub enum Commands {
         #[arg(long = "id", help = "Mark a specific item as done by transient id")]
         id: Option<String>,
     },
-    #[command(about = "Edit an existing item summary")]
+    #[command(
+        about = "Edit an existing item summary",
+        after_help = "\
+Examples:
+  wid edit
+    Edit the active item, or the latest item.
+  wid edit -i
+    Choose an item or note from the inline picker and edit it."
+    )]
     Edit {
         #[arg(
             short = 'i',
@@ -45,7 +93,15 @@ pub enum Commands {
         )]
         interactive: bool,
     },
-    #[command(about = "Focus an existing item")]
+    #[command(
+        about = "Focus an existing item",
+        after_help = "\
+Examples:
+  wid focus
+    Focus the latest unfinished item.
+  wid focus -i
+    Choose which item to focus from the inline picker."
+    )]
     Focus {
         #[arg(
             short = 'i',
@@ -54,7 +110,15 @@ pub enum Commands {
         )]
         interactive: bool,
     },
-    #[command(about = "Remove an item")]
+    #[command(
+        about = "Remove an item",
+        after_help = "\
+Examples:
+  wid rm -i
+    Remove an item or note from the inline picker.
+  wid rm --id note_4a1d9c2e7f55
+    Remove a specific item or note by transient id."
+    )]
     Rm {
         #[arg(
             short = 'i',
@@ -66,19 +130,45 @@ pub enum Commands {
         #[arg(long = "id", help = "Remove a specific item or note by transient id")]
         id: Option<String>,
     },
-    #[command(about = "Add a new active item and focus it immediately")]
+    #[command(
+        about = "Add a new active item and focus it immediately",
+        after_help = "\
+Examples:
+  wid now support note editing in rm -i
+    Add a new active item and focus it immediately.
+  wid now
+    Prompt for one line of input and make it active."
+    )]
     Now {
         #[arg(help = "The item text to start now. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
     },
-    #[command(about = "Add a note under the current or latest open item")]
+    #[command(
+        about = "Add a note under the current or latest open item",
+        after_help = "\
+Examples:
+  wid note align delete confirmation copy for notes
+    Add a note to the active item, or the latest open item.
+  wid note --id 8f3c2d1a6b4e waiting for CI to finish
+    Add a note to a specific item by transient id.
+  wid note
+    Prompt for one line of input and add it as a note."
+    )]
     Note {
         #[arg(help = "The note text to add. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
         #[arg(long = "id", help = "Add a note to a specific item by transient id")]
         id: Option<String>,
     },
-    #[command(about = "Open the log file in $EDITOR")]
+    #[command(
+        about = "Open the log file in $EDITOR",
+        after_help = "\
+Examples:
+  wid open
+    Open log.md in $EDITOR.
+  wid open --archive
+    Open archive.md in $EDITOR."
+    )]
     Open {
         #[arg(long = "archive", help = "Open archive.md instead of log.md")]
         archive: bool,

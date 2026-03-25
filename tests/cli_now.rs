@@ -85,25 +85,25 @@ fn log_contents(home: &Path) -> String {
 #[test]
 fn now_command_joins_remaining_args_with_spaces() {
     let home = unique_temp_dir("now-join");
-    let output = run_wid(&home, &["now", "CI", "が", "落ちていたので修正"], None);
+    let output = run_wid(&home, &["now", "fix", "failing", "CI"], None);
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("## "), "{stdout}");
     assert!(stdout.contains("- [>] "), "{stdout}");
-    assert!(stdout.contains("CI が 落ちていたので修正"), "{stdout}");
+    assert!(stdout.contains("fix failing CI"), "{stdout}");
     let contents = log_contents(&home);
-    assert!(contents.contains("CI が 落ちていたので修正"), "{contents}");
+    assert!(contents.contains("fix failing CI"), "{contents}");
 }
 
 #[test]
 fn now_command_reads_single_line_when_no_args_are_given() {
     let home = unique_temp_dir("now-stdin");
-    let output = run_wid(&home, &["now"], Some("レビュー指摘を反映\n"));
+    let output = run_wid(&home, &["now"], Some("address review feedback\n"));
 
     assert!(output.status.success(), "{output:?}");
     let contents = log_contents(&home);
-    assert!(contents.contains("レビュー指摘を反映"), "{contents}");
+    assert!(contents.contains("address review feedback"), "{contents}");
 }
 
 #[test]
@@ -136,11 +136,11 @@ fn append_log_entry_creates_new_file_with_today_section_and_entry() {
     let dir = unique_temp_dir("append-create");
     let path = dir.join(".local/share/wid/log.md");
 
-    store::append_log_entry(&path, "2026-03-24", "11:32", "CI が落ちていたので修正").unwrap();
+    store::append_log_entry(&path, "2026-03-24", "11:32", "fix failing CI").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "## 2026-03-24\n\n- [>] 11:32 CI が落ちていたので修正\n"
+        "## 2026-03-24\n\n- [>] 11:32 fix failing CI\n"
     );
 }
 
@@ -149,17 +149,13 @@ fn append_log_entry_reuses_existing_same_day_section() {
     let dir = unique_temp_dir("append-reuse");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        "## 2026-03-24\n\n- [>] 11:32 CI が落ちていたので修正\n",
-    )
-    .unwrap();
+    fs::write(&path, "## 2026-03-24\n\n- [>] 11:32 fix failing CI\n").unwrap();
 
-    store::append_log_entry(&path, "2026-03-24", "12:10", "実装方針を見直した").unwrap();
+    store::append_log_entry(&path, "2026-03-24", "12:10", "rework implementation plan").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [>] 12:10 実装方針を見直した\n"
+        "## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [>] 12:10 rework implementation plan\n"
     );
 }
 
@@ -170,15 +166,15 @@ fn append_log_entry_reuses_matching_section_even_when_it_is_not_last() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "## 2026-03-24\n\n- [>] 11:32 CI が落ちていたので修正\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n",
+        "## 2026-03-24\n\n- [>] 11:32 fix failing CI\n\n## 2026-03-25\n\n- [ ] 09:00 start another task\n",
     )
     .unwrap();
 
-    store::append_log_entry(&path, "2026-03-24", "12:10", "実装方針を見直した").unwrap();
+    store::append_log_entry(&path, "2026-03-24", "12:10", "rework implementation plan").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [>] 12:10 実装方針を見直した\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n"
+        "## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [>] 12:10 rework implementation plan\n\n## 2026-03-25\n\n- [ ] 09:00 start another task\n"
     );
 }
 
@@ -189,15 +185,15 @@ fn append_log_entry_preserves_unrelated_text_around_matching_section() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "intro note\n\n## 2026-03-24\n\n- [>] 11:32 CI が落ちていたので修正\n\nmisc note\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n\ntrailing note\n",
+        "intro note\n\n## 2026-03-24\n\n- [>] 11:32 fix failing CI\n\nmisc note\n\n## 2026-03-25\n\n- [ ] 09:00 start another task\n\ntrailing note\n",
     )
     .unwrap();
 
-    store::append_log_entry(&path, "2026-03-24", "12:10", "実装方針を見直した").unwrap();
+    store::append_log_entry(&path, "2026-03-24", "12:10", "rework implementation plan").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "intro note\n\n## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n\nmisc note\n- [>] 12:10 実装方針を見直した\n\n## 2026-03-25\n\n- [ ] 09:00 別件を開始\n\ntrailing note\n"
+        "intro note\n\n## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n\nmisc note\n- [>] 12:10 rework implementation plan\n\n## 2026-03-25\n\n- [ ] 09:00 start another task\n\ntrailing note\n"
     );
 }
 
@@ -208,15 +204,15 @@ fn append_log_entry_reuses_heading_with_crlf_and_trailing_spaces() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "## 2026-03-24   \r\n\r\n- [>] 11:32 CI が落ちていたので修正\r\n\r\n## 2026-03-25\r\n\r\n- [ ] 09:00 別件を開始\r\n",
+        "## 2026-03-24   \r\n\r\n- [>] 11:32 fix failing CI\r\n\r\n## 2026-03-25\r\n\r\n- [ ] 09:00 start another task\r\n",
     )
     .unwrap();
 
-    store::append_log_entry(&path, "2026-03-24", "12:10", "実装方針を見直した").unwrap();
+    store::append_log_entry(&path, "2026-03-24", "12:10", "rework implementation plan").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "## 2026-03-24   \r\n\r\n- [ ] 11:32 CI が落ちていたので修正\r\n- [>] 12:10 実装方針を見直した\r\n\r\n## 2026-03-25\r\n\r\n- [ ] 09:00 別件を開始\r\n"
+        "## 2026-03-24   \r\n\r\n- [ ] 11:32 fix failing CI\r\n- [>] 12:10 rework implementation plan\r\n\r\n## 2026-03-25\r\n\r\n- [ ] 09:00 start another task\r\n"
     );
 }
 
@@ -225,16 +221,12 @@ fn append_log_entry_inserts_newline_before_appending_at_eof_without_trailing_new
     let dir = unique_temp_dir("append-eof-no-trailing-newline");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        "## 2026-03-24\n\n- [>] 11:32 CI が落ちていたので修正",
-    )
-    .unwrap();
+    fs::write(&path, "## 2026-03-24\n\n- [>] 11:32 fix failing CI").unwrap();
 
-    store::append_log_entry(&path, "2026-03-24", "12:10", "実装方針を見直した").unwrap();
+    store::append_log_entry(&path, "2026-03-24", "12:10", "rework implementation plan").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "## 2026-03-24\n\n- [ ] 11:32 CI が落ちていたので修正\n- [>] 12:10 実装方針を見直した\n"
+        "## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [>] 12:10 rework implementation plan\n"
     );
 }

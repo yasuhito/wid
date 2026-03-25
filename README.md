@@ -110,6 +110,14 @@ That prints the whole log so you can see your current flow, including `📝` not
 
 The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
 
+If you are exploring the CLI from an agent or a script, start with:
+
+```bash
+wid --help
+```
+
+Then drill down with command-specific help such as `wid add --help` or `wid done --help`. Each help page includes an `Examples:` section so you can learn the command progressively instead of memorizing everything up front.
+
 If an agent needs to inspect the log programmatically, it can use:
 
 ```bash
