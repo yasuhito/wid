@@ -179,6 +179,43 @@ fn done_interactive_picker_moves_down_and_confirms_selection() {
 }
 
 #[test]
+fn done_interactive_picker_toggles_selected_entry_on_space() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut picker = interactive::done_picker::DonePickerState::new(vec![
+        model::EntryState::Pending,
+        model::EntryState::Active,
+        model::EntryState::Done,
+    ]);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.states()[0], model::EntryState::Done);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.states()[1], model::EntryState::Done);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.states()[2], model::EntryState::Pending);
+}
+
+#[test]
 fn done_interactive_picker_supports_k_and_up_for_previous_selection() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -231,7 +268,11 @@ fn done_command_interactive_marks_selected_entry() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(Some(1));
+    let mut picker = FakeDonePicker::new(Some(vec![
+        model::EntryState::Pending,
+        model::EntryState::Done,
+        model::EntryState::Done,
+    ]));
     done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
 
     assert_eq!(picker.calls, 1);
@@ -252,7 +293,7 @@ fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(None);
+    let mut picker = FakeDonePicker::new(None);
     done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
 
     assert_eq!(picker.calls, 1);
@@ -260,6 +301,7 @@ fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
         picker.items,
         vec![
             "2026-03-24 [ ] 11:32 oldest item".to_string(),
+            "2026-03-24 [x] 11:48 already done".to_string(),
             "2026-03-25 [ ] 09:15 newest unfinished".to_string(),
         ]
     );
@@ -277,7 +319,7 @@ fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(None);
+    let mut picker = FakeDonePicker::new(None);
     done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
 
     assert_eq!(
@@ -285,6 +327,7 @@ fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
         vec![
             "2026-03-24 [>] 11:32 current task".to_string(),
             "2026-03-24 [ ] 11:48 pending task".to_string(),
+            "2026-03-25 [x] 09:15 done item".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -301,7 +344,10 @@ fn done_command_interactive_marks_selected_active_entry_done() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(Some(0));
+    let mut picker = FakeDonePicker::new(Some(vec![
+        model::EntryState::Done,
+        model::EntryState::Pending,
+    ]));
     done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
 
     assert_eq!(
@@ -322,7 +368,7 @@ fn done_command_interactive_cancel_leaves_log_unchanged() {
     .unwrap();
 
     let before = fs::read_to_string(&path).unwrap();
-    let mut picker = FakePicker::new(None);
+    let mut picker = FakeDonePicker::new(None);
     done_command::run_interactive_at_path(&path, "2026-03-24 11:52", &mut picker).unwrap();
 
     assert_eq!(picker.calls, 1);
@@ -330,8 +376,8 @@ fn done_command_interactive_cancel_leaves_log_unchanged() {
 }
 
 #[test]
-fn done_command_interactive_errors_on_out_of_bounds_selection() {
-    let dir = unique_temp_dir("done-interactive-out-of-bounds");
+fn done_command_interactive_errors_on_invalid_state_vector() {
+    let dir = unique_temp_dir("done-interactive-invalid-state-vector");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
@@ -340,11 +386,11 @@ fn done_command_interactive_errors_on_out_of_bounds_selection() {
     )
     .unwrap();
 
-    let mut picker = FakePicker::new(Some(9));
+    let mut picker = FakeDonePicker::new(Some(vec![]));
     let error =
         done_command::run_interactive_at_path(&path, "2026-03-24 11:52", &mut picker).unwrap_err();
 
-    assert!(format!("{error:#}").contains("selection"), "{error:#}");
+    assert!(format!("{error:#}").contains("state"), "{error:#}");
 }
 
 #[test]
@@ -524,15 +570,15 @@ fn done_store_errors_when_no_unfinished_entry_exists() {
     assert!(message.contains("unfinished"), "{message}");
 }
 
-struct FakePicker {
-    result: Option<usize>,
+struct FakeDonePicker {
+    result: Option<Vec<model::EntryState>>,
     calls: usize,
     items: Vec<String>,
     default_selected: Option<usize>,
 }
 
-impl FakePicker {
-    fn new(result: Option<usize>) -> Self {
+impl FakeDonePicker {
+    fn new(result: Option<Vec<model::EntryState>>) -> Self {
         Self {
             result,
             calls: 0,
@@ -542,19 +588,15 @@ impl FakePicker {
     }
 }
 
-impl interactive::done_picker::Picker for FakePicker {
-    fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
-        self.pick_with_selected(entries, 0)
-    }
-
-    fn pick_with_selected<T: model::PickerItem>(
+impl done_picker::DoneStatePicker for FakeDonePicker {
+    fn pick_done_states(
         &mut self,
-        entries: &[T],
+        entries: &[model::LogEntry],
         selected: usize,
-    ) -> anyhow::Result<Option<usize>> {
+    ) -> anyhow::Result<Option<Vec<model::EntryState>>> {
         self.calls += 1;
-        self.items = entries.iter().map(model::PickerItem::display_label).collect();
+        self.items = entries.iter().map(model::LogEntry::display_label).collect();
         self.default_selected = Some(selected);
-        Ok(self.result)
+        Ok(self.result.clone())
     }
 }

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::commands::show::print_log_if_changed;
-use crate::interactive::done_picker::{Picker, TerminalPicker};
+use crate::interactive::done_picker::{DoneStatePicker, TerminalPicker};
 use crate::log::{paths::default_log_path, store};
 
 pub fn run(interactive: bool) -> Result<()> {
@@ -26,11 +26,11 @@ pub fn run(interactive: bool) -> Result<()> {
 pub fn run_interactive_at_path(
     path: &Path,
     timestamp: &str,
-    picker: &mut impl Picker,
+    picker: &mut impl DoneStatePicker,
 ) -> Result<()> {
-    let entries = store::collect_focus_entries(path)?;
+    let entries = store::collect_entries(path)?;
     if entries.is_empty() {
-        return Err(anyhow!("no unfinished entry found"));
+        return Err(anyhow!("no entry found"));
     }
 
     let default_index = entries
@@ -38,12 +38,30 @@ pub fn run_interactive_at_path(
         .position(|entry| entry.state.is_active())
         .unwrap_or(0);
 
-    let Some(index) = picker.pick_with_selected(&entries, default_index)? else {
+    let Some(states) = picker.pick_done_states(&entries, default_index)? else {
         return Ok(());
     };
 
-    let Some(target) = entries.get(index) else {
-        return Err(anyhow!("invalid selection"));
+    if states.len() != entries.len() {
+        return Err(anyhow!("invalid state selection"));
     };
-    store::mark_focus_entry_done(path, target, timestamp)
+
+    let updates: Vec<_> = entries
+        .iter()
+        .zip(states)
+        .filter_map(|(entry, state)| {
+            if entry.state == state {
+                None
+            } else {
+                Some((entry.clone(), state))
+            }
+        })
+        .collect();
+
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    let _ = timestamp;
+    store::apply_entry_state_updates(path, &updates)
 }

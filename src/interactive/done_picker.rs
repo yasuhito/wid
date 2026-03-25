@@ -13,7 +13,7 @@ use ratatui::widgets::Clear as ClearWidget;
 use ratatui::widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Widget};
 use ratatui::{Frame, Terminal};
 
-use crate::log::model::PickerItem;
+use crate::log::model::{EntryState, LogEntry, PickerItem};
 
 pub trait Picker {
     fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>>;
@@ -27,6 +27,14 @@ pub trait Picker {
     }
 }
 
+pub trait DoneStatePicker {
+    fn pick_done_states(
+        &mut self,
+        entries: &[LogEntry],
+        selected: usize,
+    ) -> Result<Option<Vec<EntryState>>>;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PickerOutcome {
     Continue,
@@ -34,10 +42,23 @@ pub enum PickerOutcome {
     Cancelled,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DonePickerOutcome {
+    Continue,
+    Confirmed(Vec<EntryState>),
+    Cancelled,
+}
+
 #[derive(Debug, Clone)]
 pub struct PickerState {
     selected: usize,
     len: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct DonePickerState {
+    selected: usize,
+    states: Vec<EntryState>,
 }
 
 impl PickerState {
@@ -66,6 +87,50 @@ impl PickerState {
             KeyCode::Enter => PickerOutcome::Confirmed(self.selected),
             KeyCode::Char('q') | KeyCode::Esc => PickerOutcome::Cancelled,
             _ => PickerOutcome::Continue,
+        }
+    }
+}
+
+impl DonePickerState {
+    pub fn new(states: Vec<EntryState>) -> Self {
+        Self { selected: 0, states }
+    }
+
+    pub fn selected(&self) -> usize {
+        self.selected
+    }
+
+    pub fn states(&self) -> &[EntryState] {
+        &self.states
+    }
+
+    pub fn handle_key(&mut self, key: KeyEvent) -> DonePickerOutcome {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                if self.selected + 1 < self.states.len() {
+                    self.selected += 1;
+                }
+                DonePickerOutcome::Continue
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if self.selected > 0 {
+                    self.selected -= 1;
+                }
+                DonePickerOutcome::Continue
+            }
+            KeyCode::Char(' ') => {
+                if let Some(state) = self.states.get_mut(self.selected) {
+                    *state = match *state {
+                        EntryState::Pending => EntryState::Done,
+                        EntryState::Active => EntryState::Done,
+                        EntryState::Done => EntryState::Pending,
+                    };
+                }
+                DonePickerOutcome::Continue
+            }
+            KeyCode::Enter => DonePickerOutcome::Confirmed(self.states.clone()),
+            KeyCode::Char('q') | KeyCode::Esc => DonePickerOutcome::Cancelled,
+            _ => DonePickerOutcome::Continue,
         }
     }
 }
@@ -120,6 +185,47 @@ impl Picker for TerminalPicker {
 }
 
 impl TerminalPicker {
+    pub fn pick_done_states(
+        &mut self,
+        entries: &[LogEntry],
+        selected: usize,
+    ) -> Result<Option<Vec<EntryState>>> {
+        if entries.is_empty() {
+            return Ok(None);
+        }
+
+        let anchor_row = cursor::position()?.1;
+        let clear_area = panel_area(
+            Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
+            anchor_row,
+            entries.len(),
+            PickerMode::Browse,
+        );
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, cursor::Hide)?;
+        let _guard = TerminalGuard { clear_area };
+
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+        let mut state = DonePickerState::new(entries.iter().map(|entry| entry.state).collect());
+        state.selected = selected.min(entries.len().saturating_sub(1));
+
+        loop {
+            terminal.draw(|frame| {
+                render_done_frame(frame, entries, state.states(), state.selected(), anchor_row)
+            })?;
+
+            if let Event::Key(key) = event::read()? {
+                match state.handle_key(key) {
+                    DonePickerOutcome::Continue => {}
+                    DonePickerOutcome::Confirmed(states) => return Ok(Some(states)),
+                    DonePickerOutcome::Cancelled => return Ok(None),
+                }
+            }
+        }
+    }
+
     pub fn pick_for_delete<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
         if entries.is_empty() {
             return Ok(None);
@@ -162,6 +268,16 @@ impl TerminalPicker {
                 }
             }
         }
+    }
+}
+
+impl DoneStatePicker for TerminalPicker {
+    fn pick_done_states(
+        &mut self,
+        entries: &[LogEntry],
+        selected: usize,
+    ) -> Result<Option<Vec<EntryState>>> {
+        TerminalPicker::pick_done_states(self, entries, selected)
     }
 }
 
@@ -239,6 +355,50 @@ fn render_frame<T: PickerItem>(
     }
 }
 
+fn render_done_frame(
+    frame: &mut Frame,
+    entries: &[LogEntry],
+    states: &[EntryState],
+    selected: usize,
+    anchor_row: u16,
+) {
+    let area = panel_area(frame.area(), anchor_row, entries.len(), PickerMode::Browse);
+    ClearWidget.render(area, frame.buffer_mut());
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .split(area);
+
+    let theme = PickerTheme::omarchy();
+
+    Paragraph::new("Toggle done state:")
+        .style(theme.title)
+        .render(chunks[0], frame.buffer_mut());
+
+    let body = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(chunks[1]);
+
+    let labels: Vec<String> = entries
+        .iter()
+        .zip(states.iter())
+        .map(|(entry, state)| {
+            format!(
+                "{} {} {} {}",
+                entry.date,
+                state.checkbox(),
+                entry.time,
+                entry.summary
+            )
+        })
+        .collect();
+    render_label_list(frame, body[0], &labels, selected, theme);
+    Paragraph::new("j/Down next, k/Up previous, Space toggle, Enter confirm, q/Esc cancel")
+        .style(theme.footer)
+        .render(body[1], frame.buffer_mut());
+}
+
 fn footer_text(mode: PickerMode) -> &'static str {
     match mode {
         PickerMode::Browse => "j/Down next, k/Up previous, Enter confirm, q/Esc cancel",
@@ -276,9 +436,20 @@ fn render_list<T: PickerItem>(
     selected: usize,
     theme: PickerTheme,
 ) {
-    let items: Vec<_> = entries
+    let labels: Vec<String> = entries.iter().map(|entry| entry.display_label()).collect();
+    render_label_list(frame, area, &labels, selected, theme);
+}
+
+fn render_label_list(
+    frame: &mut Frame,
+    area: Rect,
+    labels: &[String],
+    selected: usize,
+    theme: PickerTheme,
+) {
+    let items: Vec<_> = labels
         .iter()
-        .map(|entry| ListItem::new(Line::from(entry.display_label())).style(theme.normal))
+        .map(|label| ListItem::new(Line::from(label.as_str())).style(theme.normal))
         .collect();
 
     let list = List::new(items)

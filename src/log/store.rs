@@ -146,6 +146,49 @@ pub fn mark_focus_entry_done(path: &Path, target: &FocusEntry, _timestamp: &str)
     mark_entry_done_with_contents(path, &contents, fresh_target.start, fresh_target.end)
 }
 
+pub fn apply_entry_state_updates(path: &Path, updates: &[(LogEntry, EntryState)]) -> Result<()> {
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    }
+
+    let contents = read_log_contents(path)?;
+    let fresh_entries = collect_entries_from_contents(&contents);
+    let mut replacements = Vec::with_capacity(updates.len());
+
+    for (target, state) in updates {
+        let fresh_target = fresh_entries
+            .iter()
+            .find(|entry| {
+                entry.ordinal == target.ordinal
+                    && entry.date == target.date
+                    && entry.time == target.time
+                    && entry.summary == target.summary
+                    && entry.state == target.state
+            })
+            .ok_or_else(|| anyhow!("selected entry changed before it could be updated"))?;
+        replacements.push((fresh_target.start, fresh_target.end, *state));
+    }
+
+    replacements.sort_by(|left, right| right.0.cmp(&left.0));
+
+    let mut updated = contents;
+    for (start, end, state) in replacements {
+        let segment = &updated[start..end];
+        let body = segment.trim_end_matches(['\r', '\n']);
+        let ending = &segment[body.len()..];
+        let updated_body = replace_checkbox(body, state);
+        updated.replace_range(start..end, &(updated_body + ending));
+    }
+
+    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    Ok(())
+}
+
 pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)

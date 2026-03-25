@@ -77,6 +77,8 @@ Done items become:
 [x] done
 ```
 
+`wid done -i` opens a picker for all items. Use `Space` to toggle `[ ]` and `[x]`, then `Enter` to confirm.
+
 When too many completed items start to make the main log noisy, move them out of the way:
 
 ```bash
@@ -187,6 +189,7 @@ wid rm -i
 - `wid open` opens `log.md` in `$EDITOR`
 - `wid open --archive` opens `archive.md` in `$EDITOR`
 - `wid done` closes the active item, or the latest pending item
+- `wid done -i` toggles done state for multiple items before confirmation
 - `wid archive` moves all done items into `archive.md`
 - `wid rm -i` removes an item after confirmation
 
