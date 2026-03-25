@@ -8,7 +8,7 @@ use rustyline::error::ReadlineError;
 
 use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
-use crate::log::{paths::default_log_path, store};
+use crate::log::{model::RemovableKind, paths::default_log_path, store};
 
 pub trait SummaryEditor {
     fn edit_summary(&mut self, initial: &str) -> Result<String>;
@@ -83,26 +83,30 @@ fn run_interactive_at_path(
     picker: &mut impl Picker,
     editor: &mut impl SummaryEditor,
 ) -> Result<()> {
-    let entries = store::collect_entries(path)?;
-    if entries.is_empty() {
+    let targets = store::collect_removable_targets(path)?;
+    if targets.is_empty() {
         return Err(anyhow!("no entry found"));
     }
 
-    let default_index = entries
+    let default_index = targets
         .iter()
-        .position(|entry| entry.state.is_active())
-        .unwrap_or(entries.len().saturating_sub(1));
+        .position(|target| target.kind == RemovableKind::Entry && target.state.is_active())
+        .unwrap_or(targets.len().saturating_sub(1));
 
-    let Some(index) = picker.pick_with_selected(&entries, default_index)? else {
+    let Some(index) = picker.pick_with_selected(&targets, default_index)? else {
         return Ok(());
     };
 
-    let Some(target) = entries.get(index) else {
+    let Some(target) = targets.get(index) else {
         return Err(anyhow!("invalid selection"));
     };
 
-    let updated = validate_summary(editor.edit_summary(&target.summary)?)?;
-    store::edit_entry_summary(path, target, &updated)
+    let initial = match target.kind {
+        RemovableKind::Entry => target.summary.as_str(),
+        RemovableKind::Note => target.note_text.as_deref().unwrap_or_default(),
+    };
+    let updated = validate_summary(editor.edit_summary(initial)?)?;
+    store::edit_removable_target_text(path, target, &updated)
 }
 
 fn validate_summary(summary: String) -> Result<String> {

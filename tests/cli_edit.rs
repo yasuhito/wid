@@ -128,6 +128,38 @@ fn edit_interactive_updates_selected_entry_only() {
 }
 
 #[test]
+fn edit_interactive_updates_selected_note_only() {
+    let dir = unique_temp_dir("edit-interactive-note");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [>] 08:12 active item\n  - first note\n  - second note\n- [ ] 08:30 later item\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(2));
+    let mut editor = FakeEditor::with_response(Some("edited second note"));
+    edit_command::run_at_path(&path, true, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "## 2026-03-25\n\n- [>] 08:12 active item\n  - first note\n  - edited second note\n- [ ] 08:30 later item\n"
+    );
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-25 [>] 08:12 active item".to_string(),
+            "  📝 first note".to_string(),
+            "  📝 second note".to_string(),
+            "2026-03-25 [ ] 08:30 later item".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+    assert_eq!(editor.initial_summary.as_deref(), Some("second note"));
+}
+
+#[test]
 fn edit_interactive_defaults_to_latest_entry_when_no_active_exists() {
     let dir = unique_temp_dir("edit-interactive-default-latest");
     let path = dir.join("log.md");

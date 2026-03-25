@@ -366,6 +366,55 @@ pub fn edit_entry_summary(path: &Path, target: &LogEntry, summary: &str) -> Resu
     edit_entry_summary_with_contents(path, &contents, &fresh_target, summary)
 }
 
+pub fn edit_removable_target_text(path: &Path, target: &RemovableTarget, text: &str) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+    let mut entry_ordinal = 0usize;
+
+    for day in &mut document.days {
+        let mut entry_index = 0usize;
+        while entry_index < day.entries.len() {
+            let entry = &mut day.entries[entry_index];
+            let entry_matches = entry_ordinal == target.entry_ordinal
+                && day.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+                && entry.state == target.state;
+
+            match target.kind {
+                RemovableKind::Entry if entry_matches => {
+                    entry.summary = text.to_string();
+                    save_log_to_path(path, &document)?;
+                    return Ok(());
+                }
+                RemovableKind::Note if entry_matches => {
+                    let Some(note_ordinal) = target.note_ordinal else {
+                        break;
+                    };
+                    let Some(note_text) = target.note_text.as_deref() else {
+                        break;
+                    };
+                    if note_ordinal < entry.notes.len() && entry.notes[note_ordinal] == note_text {
+                        entry.notes[note_ordinal] = text.to_string();
+                        save_log_to_path(path, &document)?;
+                        return Ok(());
+                    }
+                    return Err(anyhow!("selected note changed before it could be edited"));
+                }
+                _ => {
+                    entry_ordinal += 1;
+                    entry_index += 1;
+                }
+            }
+        }
+    }
+
+    let message = match target.kind {
+        RemovableKind::Entry => "selected entry changed before it could be edited",
+        RemovableKind::Note => "selected note changed before it could be edited",
+    };
+    Err(anyhow!(message))
+}
+
 pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)

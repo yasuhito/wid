@@ -212,6 +212,7 @@ wid rm -i
 - `wid note` appends a note under the active item, or the latest open item
 - `wid note --id` appends a note to a specific item by transient id from `wid --json`
 - `wid edit` edits the active item, or the latest item
+- `wid edit -i` edits either an item or a `📝` note from the inline picker
 - `wid open` opens `log.md` in `$EDITOR`
 - `wid open --archive` opens `archive.md` in `$EDITOR`
 - `wid done` closes the active item, or the latest pending item
