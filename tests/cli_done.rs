@@ -430,6 +430,30 @@ fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
 }
 
 #[test]
+fn done_command_interactive_shows_notes_under_entries() {
+    let dir = unique_temp_dir("done-interactive-notes");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-24\n\n- [>] 11:32 current task\n  - first note\n  - second note\n\n- [ ] 11:48 pending task\n  - follow-up detail\n",
+    )
+    .unwrap();
+
+    let mut picker = FakeDonePicker::new(None);
+    done_command::run_interactive_at_path(&path, "2026-03-25 09:16", &mut picker).unwrap();
+
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-24 [>] 11:32 current task\n  📝 first note\n  📝 second note".to_string(),
+            "2026-03-24 [ ] 11:48 pending task\n  📝 follow-up detail".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
 fn done_command_interactive_marks_selected_active_entry_done() {
     let dir = unique_temp_dir("done-interactive-active-selected");
     let path = dir.join("log.md");

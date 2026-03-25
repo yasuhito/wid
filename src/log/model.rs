@@ -160,6 +160,7 @@ pub struct LogEntry {
     pub time: String,
     pub summary: String,
     pub tags: Vec<String>,
+    pub notes: Vec<String>,
     pub state: EntryState,
     pub ordinal: usize,
     pub start: usize,
@@ -168,13 +169,23 @@ pub struct LogEntry {
 
 impl LogEntry {
     pub fn display_label(&self) -> String {
-        format!(
+        self.display_label_with_state(self.state)
+    }
+
+    pub fn display_label_with_state(&self, state: EntryState) -> String {
+        let mut lines = vec![format!(
             "{} {} {} {}",
             self.date,
-            self.state.checkbox(),
+            state.checkbox(),
             self.time,
             format_summary_with_tags(&self.summary, &self.tags)
-        )
+        )];
+        lines.extend(self.notes.iter().map(|note| format!("  📝 {note}")));
+        lines.join("\n")
+    }
+
+    pub fn display_line_count(&self) -> usize {
+        1 + self.notes.len()
     }
 }
 
@@ -244,6 +255,7 @@ mod tests {
             time: "09:15".into(),
             summary: "completed work".into(),
             tags: Vec::new(),
+            notes: vec!["left a note".into()],
             state: EntryState::Done,
             ordinal: 0,
             start: 0,
@@ -254,6 +266,7 @@ mod tests {
             time: "09:16".into(),
             summary: "investigate [x]".into(),
             tags: Vec::new(),
+            notes: Vec::new(),
             state: EntryState::Pending,
             ordinal: 1,
             start: 0,
@@ -262,7 +275,7 @@ mod tests {
 
         assert_eq!(
             done_entry.display_label(),
-            "2026-03-25 [x] 09:15 completed work"
+            "2026-03-25 [x] 09:15 completed work\n  📝 left a note"
         );
         assert_eq!(
             non_done_entry.display_label(),

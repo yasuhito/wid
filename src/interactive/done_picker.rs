@@ -8,7 +8,7 @@ use crossterm::terminal::{self, Clear, ClearType};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Clear as ClearWidget;
 use ratatui::widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Widget};
 use ratatui::{Frame, Terminal};
@@ -372,7 +372,17 @@ fn render_done_frame(
     selected: usize,
     anchor_row: u16,
 ) {
-    let area = panel_area(frame.area(), anchor_row, entries.len(), PickerMode::Browse);
+    let labels: Vec<String> = entries
+        .iter()
+        .zip(states.iter())
+        .map(|(entry, state)| entry.display_label_with_state(*state))
+        .collect();
+    let area = panel_area(
+        frame.area(),
+        anchor_row,
+        done_picker_content_lines(entries),
+        PickerMode::Browse,
+    );
     ClearWidget.render(area, frame.buffer_mut());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -390,19 +400,6 @@ fn render_done_frame(
         .constraints([Constraint::Min(1), Constraint::Length(1)])
         .split(chunks[1]);
 
-    let labels: Vec<String> = entries
-        .iter()
-        .zip(states.iter())
-        .map(|(entry, state)| {
-            format!(
-                "{} {} {} {}",
-                entry.date,
-                state.checkbox(),
-                entry.time,
-                entry.summary
-            )
-        })
-        .collect();
     render_label_list(frame, body[0], &labels, selected, theme);
     Paragraph::new("j/Down next, k/Up previous, Space toggle, Enter confirm, q/Esc cancel")
         .style(theme.footer)
@@ -453,7 +450,10 @@ fn render_label_list(
 ) {
     let items: Vec<_> = labels
         .iter()
-        .map(|label| ListItem::new(Line::from(label.as_str())).style(theme.normal))
+        .map(|label| {
+            let lines = label.lines().map(Line::from).collect::<Vec<_>>();
+            ListItem::new(Text::from(lines)).style(theme.normal)
+        })
         .collect();
 
     let list = List::new(items)
@@ -468,13 +468,22 @@ fn render_label_list(
     }
 
     let offset = state.offset();
-    let relative = selected.saturating_sub(offset) as u16;
+    let relative = labels
+        .iter()
+        .skip(offset)
+        .take(selected.saturating_sub(offset))
+        .map(|label| label.lines().count() as u16)
+        .sum::<u16>();
     if relative >= area.height {
         return;
     }
 
     let accent_area = Rect::new(area.x, area.y + relative, 2, 1);
     Paragraph::new(Span::styled("▌ ", theme.accent)).render(accent_area, frame.buffer_mut());
+}
+
+fn done_picker_content_lines(entries: &[LogEntry]) -> usize {
+    entries.iter().map(LogEntry::display_line_count).sum()
 }
 
 fn render_confirmation_inline(
@@ -687,6 +696,7 @@ mod tests {
             time: "09:15".into(),
             summary: "selected".into(),
             tags: Vec::new(),
+            notes: Vec::new(),
             state: crate::log::model::EntryState::Pending,
             ordinal: 0,
             start: 0,
