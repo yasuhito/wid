@@ -115,10 +115,10 @@ fn rm_interactive_lists_entries_and_notes_in_wid_order() {
             .collect::<Vec<_>>(),
         vec![
             "2026-03-24 [ ] 11:32 first unfinished".to_string(),
-            "  📝 first note".to_string(),
+            "  · first note".to_string(),
             "2026-03-24 [x] 12:10 already done".to_string(),
             "2026-03-25 [ ] 09:15 newest item".to_string(),
-            "  📝 newest note".to_string(),
+            "  · newest note".to_string(),
         ]
     );
 }

@@ -150,8 +150,8 @@ fn edit_interactive_updates_selected_note_only() {
         picker.items,
         vec![
             "2026-03-25 [>] 08:12 active item".to_string(),
-            "  📝 first note".to_string(),
-            "  📝 second note".to_string(),
+            "  · first note".to_string(),
+            "  · second note".to_string(),
             "2026-03-25 [ ] 08:30 later item".to_string(),
         ]
     );

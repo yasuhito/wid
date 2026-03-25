@@ -90,7 +90,7 @@ fn now_command_joins_remaining_args_with_spaces() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("## "), "{stdout}");
-    assert!(stdout.contains("- [>] "), "{stdout}");
+    assert!(stdout.contains("◉ "), "{stdout}");
     assert!(stdout.contains("fix failing CI"), "{stdout}");
     let contents = log_contents(&home);
     assert!(contents.contains("fix failing CI"), "{contents}");

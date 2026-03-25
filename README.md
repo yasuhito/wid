@@ -108,7 +108,7 @@ At any time, just run:
 wid
 ```
 
-That prints the whole log so you can see your current flow, including `📝` notes under each item.
+That prints the whole log so you can see your current flow, including indented `·` notes under each item.
 
 The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
 
@@ -252,7 +252,7 @@ wid rm -i
 - `wid note --id` appends a note to a specific item by transient id from `wid --json`
 - `wid edit` edits the active item, or the latest item
 - `wid edit --id` edits a specific item or note by transient id from `wid --json`
-- `wid edit -i` edits either an item or a `📝` note from the inline picker
+- `wid edit -i` edits either an item or an indented `·` note from the inline picker
 - `wid tag add` adds one or more `@tags` to a specific item by transient id
 - `wid tag rm` removes one or more `@tags` from a specific item by transient id
 - `wid open` opens `log.md` in `$EDITOR`

@@ -69,7 +69,7 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n- [x] 12:10 rework implementation plan\n"
+        "## 2026-03-24\n\n□ 11:32 fix failing CI\n☑ 12:10 rework implementation plan\n"
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
@@ -90,7 +90,7 @@ fn wid_omits_empty_day_sections_from_output() {
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "## 2026-03-25\n\n- [ ] 11:32 fix failing CI\n"
+        "## 2026-03-25\n\n□ 11:32 fix failing CI\n"
     );
 }
 
@@ -201,11 +201,14 @@ fn render_document_with_color_highlights_active_and_done_entries() {
     let output = show_command::render_document(&document, true);
 
     assert!(output.contains("\u{1b}["), "{output:?}");
+    assert!(output.contains("◉ 11:32 active"), "{output:?}");
+    assert!(output.contains("☑ 12:10 done"), "{output:?}");
+    assert!(output.contains("□ 12:30 pending"), "{output:?}");
     assert!(output.contains("11:32 active"), "{output:?}");
-    assert!(output.contains("  📝 first note"), "{output:?}");
+    assert!(output.contains("  · first note"), "{output:?}");
     assert!(output.contains("12:10 done"), "{output:?}");
-    assert!(output.contains("  📝 done note"), "{output:?}");
-    assert!(!output.contains("\n  📝 done note\n"), "{output:?}");
+    assert!(output.contains("  · done note"), "{output:?}");
+    assert!(!output.contains("\n  · done note\n"), "{output:?}");
 }
 
 #[test]
@@ -215,5 +218,6 @@ fn render_document_shows_note_emoji_without_color() {
 
     let output = show_command::render_document(&document, false);
 
-    assert!(output.contains("  📝 first note"), "{output:?}");
+    assert!(output.contains("□ 11:32 active"), "{output:?}");
+    assert!(output.contains("  · first note"), "{output:?}");
 }

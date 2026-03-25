@@ -71,7 +71,7 @@ fn add_command_appends_pending_entry() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("## "), "{stdout}");
-    assert!(stdout.contains("- [ ] "), "{stdout}");
+    assert!(stdout.contains("□ "), "{stdout}");
     assert!(stdout.contains("review later"), "{stdout}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(contents.contains("- [ ] "), "{contents}");

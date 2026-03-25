@@ -253,9 +253,9 @@ fn note_command_interactive_appends_to_selected_entry() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-25 [>] 08:01 active item\n  📝 existing active note".to_string(),
-            "2026-03-25 [x] 08:06 done item\n  📝 existing done note".to_string(),
-            "2026-03-25 [ ] 08:12 pending item\n  📝 existing pending note".to_string(),
+            "2026-03-25 [>] 08:01 active item\n  · existing active note".to_string(),
+            "2026-03-25 [x] 08:06 done item\n  · existing done note".to_string(),
+            "2026-03-25 [ ] 08:12 pending item\n  · existing pending note".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -327,8 +327,8 @@ fn note_command_interactive_shows_done_items_but_defaults_to_latest_open_item() 
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-25 [ ] 08:01 first pending\n  📝 first pending note".to_string(),
-            "2026-03-25 [x] 08:12 done item\n  📝 done note".to_string(),
+            "2026-03-25 [ ] 08:01 first pending\n  · first pending note".to_string(),
+            "2026-03-25 [x] 08:12 done item\n  · done note".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));

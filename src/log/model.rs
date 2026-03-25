@@ -15,6 +15,14 @@ impl EntryState {
         }
     }
 
+    pub fn display_marker(self) -> &'static str {
+        match self {
+            Self::Pending => "□",
+            Self::Active => "◉",
+            Self::Done => "☑",
+        }
+    }
+
     pub fn is_pending(self) -> bool {
         matches!(self, Self::Pending)
     }
@@ -75,6 +83,10 @@ pub fn format_summary_with_tags(summary: &str, tags: &[String]) -> String {
             .collect::<Vec<_>>()
             .join(" ")
     )
+}
+
+pub fn format_note_display(note: &str) -> String {
+    format!("  · {note}")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -195,7 +207,7 @@ impl LogEntry {
             self.time,
             format_summary_with_tags(&self.summary, &self.tags)
         )];
-        lines.extend(self.notes.iter().map(|note| format!("  📝 {note}")));
+        lines.extend(self.notes.iter().map(|note| format_note_display(note)));
         lines.join("\n")
     }
 
@@ -244,7 +256,7 @@ impl RemovableTarget {
                 format_summary_with_tags(&self.summary, &self.tags)
             ),
             RemovableKind::Note => {
-                format!("  📝 {}", self.note_text.as_deref().unwrap_or_default())
+                format_note_display(self.note_text.as_deref().unwrap_or_default())
             }
         }
     }
@@ -294,7 +306,7 @@ mod tests {
 
         assert_eq!(
             done_entry.display_label(),
-            "2026-03-25 [x] 09:15 completed work\n  📝 left a note"
+            "2026-03-25 [x] 09:15 completed work\n  · left a note"
         );
         assert_eq!(
             non_done_entry.display_label(),

@@ -194,7 +194,7 @@ fn done_command_marks_active_entry_first() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("- [x] 12:10 rework implementation plan"),
+        stdout.contains("☑ 12:10 rework implementation plan"),
         "{stdout}"
     );
     let contents = fs::read_to_string(log_path(&home)).unwrap();
@@ -446,8 +446,8 @@ fn done_command_interactive_shows_notes_under_entries() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 [>] 11:32 current task\n  📝 first note\n  📝 second note".to_string(),
-            "2026-03-24 [ ] 11:48 pending task\n  📝 follow-up detail".to_string(),
+            "2026-03-24 [>] 11:32 current task\n  · first note\n  · second note".to_string(),
+            "2026-03-24 [ ] 11:48 pending task\n  · follow-up detail".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));

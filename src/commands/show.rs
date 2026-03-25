@@ -7,7 +7,7 @@ use crossterm::style::Stylize;
 use serde_json::json;
 
 use crate::log::{
-    model::{EntryState, LogDocument, format_summary_with_tags},
+    model::{EntryState, LogDocument, format_note_display, format_summary_with_tags},
     store::{load_log, load_log_at_path},
 };
 
@@ -117,7 +117,7 @@ pub fn print_log_if_changed(path: &Path, before: &str) -> anyhow::Result<()> {
 }
 
 fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: bool) -> String {
-    let line = format!("- {} {} {}", state.checkbox(), time, summary);
+    let line = format!("{} {} {}", state.display_marker(), time, summary);
     if !colorize {
         return line;
     }
@@ -134,7 +134,7 @@ pub fn render_entry_summary(summary: &str, tags: &[String]) -> String {
 }
 
 fn render_note_line(state: EntryState, note: &str, colorize: bool) -> String {
-    let line = format!("  📝 {note}");
+    let line = format_note_display(note);
     if !colorize {
         return line;
     }
