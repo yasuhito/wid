@@ -480,6 +480,44 @@ pub fn edit_by_transient_id(path: &Path, id: &str, text: &str) -> Result<()> {
     Err(anyhow!("item changed or not found"))
 }
 
+pub fn add_tags_by_transient_id(path: &Path, id: &str, tags: &[String]) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if entry.transient_id(&day.date) == id {
+                for tag in tags {
+                    if !entry.tags.iter().any(|existing| existing == tag) {
+                        entry.tags.push(tag.clone());
+                    }
+                }
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("item changed or not found"))
+}
+
+pub fn remove_tags_by_transient_id(path: &Path, id: &str, tags: &[String]) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if entry.transient_id(&day.date) == id {
+                entry
+                    .tags
+                    .retain(|existing| !tags.iter().any(|tag| tag == existing));
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("item changed or not found"))
+}
+
 pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)

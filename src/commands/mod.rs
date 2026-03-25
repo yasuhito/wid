@@ -8,3 +8,4 @@ pub mod now;
 pub mod open;
 pub mod rm;
 pub mod show;
+pub mod tag;

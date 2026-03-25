@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands;
+use crate::commands::tag::TagAction;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -20,6 +21,8 @@ Examples:
     Print the log as JSON for agents or scripts.
   wid done --id 8f3c2d1a6b4e
     Mark a specific item as done from a transient id.
+  wid tag add --id 8f3c2d1a6b4e @wid
+    Add tags to a specific item by transient id.
 
 Run 'wid <command> --help' for details."
 )]
@@ -198,6 +201,38 @@ Examples:
         #[arg(long = "archive", help = "Open archive.md instead of log.md")]
         archive: bool,
     },
+    #[command(subcommand, about = "Add or remove tags on an item")]
+    Tag(TagCommands),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TagCommands {
+    #[command(
+        about = "Add tags to an item",
+        after_help = "\
+Examples:
+  wid tag add --id 8f3c2d1a6b4e @wid @agent
+    Add one or more @tags to a specific item."
+    )]
+    Add {
+        #[arg(long = "id", help = "Target a specific item by transient id")]
+        id: String,
+        #[arg(help = "One or more tags to add, each starting with @")]
+        tags: Vec<String>,
+    },
+    #[command(
+        about = "Remove tags from an item",
+        after_help = "\
+Examples:
+  wid tag rm --id 8f3c2d1a6b4e @agent
+    Remove one or more @tags from a specific item."
+    )]
+    Rm {
+        #[arg(long = "id", help = "Target a specific item by transient id")]
+        id: String,
+        #[arg(help = "One or more tags to remove, each starting with @")]
+        tags: Vec<String>,
+    },
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -217,13 +252,19 @@ pub fn run() -> anyhow::Result<()> {
         Some(Commands::Now { text }) => commands::now::run(text),
         Some(Commands::Note { text, id }) => commands::note::run(text, id),
         Some(Commands::Open { archive }) => commands::open::run(archive),
+        Some(Commands::Tag(TagCommands::Add { id, tags })) => {
+            commands::tag::run(TagAction::Add, id, tags)
+        }
+        Some(Commands::Tag(TagCommands::Rm { id, tags })) => {
+            commands::tag::run(TagAction::Rm, id, tags)
+        }
         None => commands::show::run(cli.json),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, Commands};
+    use super::{Cli, Commands, TagCommands};
     use clap::Parser;
 
     #[test]
@@ -275,6 +316,20 @@ mod tests {
             Some(Commands::Edit { id, text, .. }) => {
                 assert_eq!(id.as_deref(), Some("entry_123"));
                 assert_eq!(text, vec!["--json", "shape"]);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn tag_add_parses_id_and_tags() {
+        let cli = Cli::try_parse_from(["wid", "tag", "add", "--id", "entry_123", "@wid", "@agent"])
+            .expect("tag add should parse id and tags");
+
+        match cli.command {
+            Some(Commands::Tag(TagCommands::Add { id, tags })) => {
+                assert_eq!(id, "entry_123");
+                assert_eq!(tags, vec!["@wid", "@agent"]);
             }
             other => panic!("unexpected command: {other:?}"),
         }

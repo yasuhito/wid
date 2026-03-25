@@ -137,6 +137,7 @@ Agents can also add notes and remove either whole items or individual notes by t
 ```bash
 wid note --id 8f3c2d1a6b4e "waiting for CI to finish"
 wid rm --id note_4a1d9c2e7f55
+wid tag add --id 8f3c2d1a6b4e @wid @agent
 ```
 
 If an agent wants to avoid shell quoting entirely, it can stream text through standard input:
@@ -216,7 +217,10 @@ wid note TEXT...
 wid note
 wid note --id ID TEXT...
 wid edit
+wid edit --id ID TEXT...
 wid edit -i
+wid tag add --id ID @tag...
+wid tag rm --id ID @tag...
 wid open
 wid open --archive
 wid done
@@ -236,7 +240,10 @@ wid rm -i
 - `wid note` appends a note under the active item, or the latest open item
 - `wid note --id` appends a note to a specific item by transient id from `wid --json`
 - `wid edit` edits the active item, or the latest item
+- `wid edit --id` edits a specific item or note by transient id from `wid --json`
 - `wid edit -i` edits either an item or a `📝` note from the inline picker
+- `wid tag add` adds one or more `@tags` to a specific item by transient id
+- `wid tag rm` removes one or more `@tags` from a specific item by transient id
 - `wid open` opens `log.md` in `$EDITOR`
 - `wid open --archive` opens `archive.md` in `$EDITOR`
 - `wid done` closes the active item, or the latest pending item
