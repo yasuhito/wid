@@ -1,4 +1,5 @@
 pub mod add;
+pub mod archive;
 pub mod done;
 pub mod edit;
 pub mod focus;

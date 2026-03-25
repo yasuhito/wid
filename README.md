@@ -77,6 +77,14 @@ Done items become:
 [x] done
 ```
 
+When too many completed items start to make the main log noisy, move them out of the way:
+
+```bash
+wid archive
+```
+
+That moves all done items into a separate archive log while keeping your main log focused on the work that is still alive.
+
 And if you wrote something by mistake, remove it:
 
 ```bash
@@ -156,6 +164,7 @@ wid edit
 wid edit -i
 wid done
 wid done -i
+wid archive
 wid rm -i
 ```
 
@@ -167,6 +176,7 @@ wid rm -i
 - `wid note` appends a note under the active item, or the latest open item
 - `wid edit` edits the active item, or the latest item
 - `wid done` closes the active item, or the latest pending item
+- `wid archive` moves all done items into `archive.md`
 - `wid rm -i` removes an item after confirmation
 
 ## Storage
@@ -175,6 +185,12 @@ The default log file is:
 
 ```text
 ~/.local/share/wid/log.md
+```
+
+Archived done items are stored in:
+
+```text
+~/.local/share/wid/archive.md
 ```
 
 The log is plain Markdown, intended to stay readable without a dedicated viewer.

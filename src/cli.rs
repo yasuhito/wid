@@ -16,6 +16,8 @@ pub enum Commands {
         #[arg(help = "The item text to add. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
     },
+    #[command(about = "Move done items into the archive log")]
+    Archive,
     #[command(about = "Mark an item as done")]
     Done {
         #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
@@ -53,6 +55,7 @@ pub fn run() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Add { text }) => commands::add::run(text),
+        Some(Commands::Archive) => commands::archive::run(),
         Some(Commands::Done { interactive }) => commands::done::run(interactive),
         Some(Commands::Edit { interactive }) => commands::edit::run(interactive),
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),

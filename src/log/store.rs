@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use super::format::{format_day_section, format_entry, format_log};
 use super::model::{DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, UnfinishedEntry};
 use super::parser::{parse_day_heading, parse_entry_line, parse_log, parse_note_line};
-use super::paths::default_log_path;
+use super::paths::{default_archive_path, default_log_path};
 
 pub fn load_log() -> Result<LogDocument> {
     let path = default_log_path()?;
@@ -24,6 +24,12 @@ pub fn load_log_at_path(path: &Path) -> Result<LogDocument> {
 pub fn save_log(document: &LogDocument) -> Result<()> {
     let path = default_log_path()?;
     save_log_to_path(&path, document)
+}
+
+pub fn archive_done_entries() -> Result<()> {
+    let log_path = default_log_path()?;
+    let archive_path = default_archive_path()?;
+    archive_done_entries_at_paths(&log_path, &archive_path)
 }
 
 pub fn collect_unfinished_entries(path: &Path) -> Result<Vec<UnfinishedEntry>> {
@@ -252,6 +258,27 @@ pub fn append_note_to_latest_open_entry(path: &Path, note: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn archive_done_entries_at_paths(log_path: &Path, archive_path: &Path) -> Result<()> {
+    let log_document = load_log_at_path(log_path)?;
+    let archive_document = load_log_at_path(archive_path)?;
+    let (remaining_document, archived_document) = archive_documents(log_document, archive_document);
+
+    save_log_to_path(log_path, &remaining_document)?;
+    if archived_document.days.is_empty() {
+        match fs::remove_file(archive_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("failed to remove archive at {}", archive_path.display()))
+            }
+        }
+    } else {
+        save_log_to_path(archive_path, &archived_document)?;
+    }
+    Ok(())
+}
+
 fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -261,6 +288,48 @@ fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
     let contents = format_log(document);
     fs::write(path, contents)?;
     Ok(())
+}
+
+fn archive_documents(log_document: LogDocument, mut archive_document: LogDocument) -> (LogDocument, LogDocument) {
+    let mut remaining_days = Vec::new();
+
+    for day in log_document.days {
+        let mut archived_entries = Vec::new();
+        let mut remaining_entries = Vec::new();
+
+        for entry in day.entries {
+            if entry.state.is_done() {
+                archived_entries.push(entry);
+            } else {
+                remaining_entries.push(entry);
+            }
+        }
+
+        if !archived_entries.is_empty() {
+            if let Some(existing_day) = archive_document.days.iter_mut().find(|existing| existing.date == day.date) {
+                existing_day.entries.extend(archived_entries);
+            } else {
+                archive_document.days.push(DaySection {
+                    date: day.date.clone(),
+                    entries: archived_entries,
+                });
+            }
+        }
+
+        if !remaining_entries.is_empty() {
+            remaining_days.push(DaySection {
+                date: day.date,
+                entries: remaining_entries,
+            });
+        }
+    }
+
+    archive_document.days.retain(|day| !day.entries.is_empty());
+
+    (
+        LogDocument { days: remaining_days },
+        archive_document,
+    )
 }
 
 fn read_log_contents(path: &Path) -> Result<String> {
