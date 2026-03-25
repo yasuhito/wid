@@ -178,6 +178,15 @@ That places the binary in:
 
 If `~/.cargo/bin` is in your `PATH`, you can then run `wid` directly.
 
+## Codex Skill
+
+`wid` also ships with a Codex skill so agents can keep the log updated in a concise, human-readable way.
+
+See:
+
+- [Codex install guide](/home/yasuhito/Work/wid/.codex/INSTALL.md)
+- [Codex usage guide](/home/yasuhito/Work/wid/docs/README.codex.md)
+
 ## Why This Helps
 
 `wid` is built around a simple idea: your attention should have a visible home.
