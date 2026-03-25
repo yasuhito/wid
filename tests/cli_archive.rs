@@ -1,5 +1,7 @@
 #![allow(dead_code, unused_imports)]
 
+#[path = "../src/commands/archive.rs"]
+mod archive_command;
 #[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
@@ -17,6 +19,9 @@ mod store;
 mod log {
     pub mod model {
         pub use crate::model::*;
+    }
+    pub mod paths {
+        pub use crate::paths::*;
     }
     pub mod store {
         pub use crate::store::*;
@@ -74,7 +79,7 @@ fn archive_moves_all_done_entries_and_keeps_open_entries_in_log() {
     )
     .unwrap();
 
-    let output = run_wid(&home, &["archive"]);
+    let output = run_wid(&home, &["archive", "--yes"]);
 
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
@@ -101,7 +106,7 @@ fn archive_reuses_existing_archive_day_sections() {
     fs::write(&log, "## 2026-03-24\n\n- [x] 11:32 finished task\n").unwrap();
     fs::write(&archive, "## 2026-03-24\n\n- [x] 09:10 archived earlier\n").unwrap();
 
-    let output = run_wid(&home, &["archive"]);
+    let output = run_wid(&home, &["archive", "--yes"]);
 
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
@@ -129,4 +134,68 @@ fn archive_leaves_files_clean_when_there_are_no_done_entries() {
         "## 2026-03-24\n\n- [ ] 11:48 pending task\n- [>] 12:10 active task\n"
     );
     assert!(!archive_path(&home).exists());
+}
+
+#[test]
+fn archive_requires_yes_in_non_interactive_mode_when_done_entries_exist() {
+    let home = unique_temp_dir("archive-requires-yes");
+    let log = log_path(&home);
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::write(&log, "## 2026-03-24\n\n- [x] 11:32 finished task\n").unwrap();
+
+    let output = run_wid(&home, &["archive"]);
+
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("use --yes"), "{stderr}");
+    assert_eq!(
+        fs::read_to_string(&log).unwrap(),
+        "## 2026-03-24\n\n- [x] 11:32 finished task\n"
+    );
+    assert!(!archive_path(&home).exists());
+}
+
+#[test]
+fn archive_with_yes_succeeds_in_non_interactive_mode() {
+    let home = unique_temp_dir("archive-yes");
+    let log = log_path(&home);
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::write(&log, "## 2026-03-24\n\n- [x] 11:32 finished task\n").unwrap();
+
+    let output = run_wid(&home, &["archive", "--yes"]);
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(fs::read_to_string(&log).unwrap(), "");
+    assert_eq!(
+        fs::read_to_string(archive_path(&home)).unwrap(),
+        "## 2026-03-24\n\n- [x] 11:32 finished task\n"
+    );
+}
+
+#[test]
+fn archive_confirmation_accepts_yes_and_rejects_other_answers() {
+    use std::io::Cursor;
+
+    let mut accepted_output = Vec::new();
+    let accepted = archive_command::confirm_archive(
+        2,
+        &mut Cursor::new(b"y\n".to_vec()),
+        &mut accepted_output,
+    )
+    .unwrap();
+    assert!(accepted);
+    assert!(
+        String::from_utf8(accepted_output)
+            .unwrap()
+            .contains("Archive 2 done entries to archive.md? [y/N]")
+    );
+
+    let mut rejected_output = Vec::new();
+    let rejected = archive_command::confirm_archive(
+        1,
+        &mut Cursor::new(b"n\n".to_vec()),
+        &mut rejected_output,
+    )
+    .unwrap();
+    assert!(!rejected);
 }

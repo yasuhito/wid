@@ -59,9 +59,14 @@ Examples:
         after_help = "\
 Examples:
   wid archive
-    Move all done items from log.md into archive.md."
+    Ask for confirmation, then move all done items from log.md into archive.md.
+  wid archive --yes
+    Skip confirmation and archive done items immediately."
     )]
-    Archive,
+    Archive {
+        #[arg(long = "yes", help = "Skip the confirmation prompt")]
+        yes: bool,
+    },
     #[command(
         about = "Mark an item as done",
         after_help = "\
@@ -240,7 +245,7 @@ pub fn run() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Add { text }) => commands::add::run(text),
-        Some(Commands::Archive) => commands::archive::run(),
+        Some(Commands::Archive { yes }) => commands::archive::run(yes),
         Some(Commands::Done { interactive, id }) => commands::done::run(interactive, id),
         Some(Commands::Edit {
             interactive,

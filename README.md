@@ -83,9 +83,10 @@ When too many completed items start to make the main log noisy, move them out of
 
 ```bash
 wid archive
+wid archive --yes
 ```
 
-That moves all done items into a separate archive log while keeping your main log focused on the work that is still alive.
+`wid archive` asks for confirmation before moving all done items into a separate archive log. Use `wid archive --yes` from scripts or agents when you want to skip the prompt and keep your main log focused on the work that is still alive.
 
 And if you wrote something by mistake, remove it:
 
