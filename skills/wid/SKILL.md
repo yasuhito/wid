@@ -54,6 +54,26 @@ Do not use this skill for:
 
 If an `--id` command fails with `item changed or not found`, fetch fresh state with `wid --json` and retry with the new transient id.
 
+After creating a new task, usually add at least one note right away. The first note should capture one of:
+
+- the first concrete step
+- the key constraint
+- why this task exists
+
+## Keep wid Current
+
+Treat `wid` as a current task map, not an append-only diary.
+
+If the plan changes and the existing task or notes no longer describe the real work:
+
+- update the task summary with `wid edit --id ...`
+- update stale notes with `wid edit --id ...`
+- remove obsolete notes with `wid rm --id ...`
+
+Do not let old notes pile up when they would mislead the human reading the log later.
+
+Prefer a small number of current, accurate notes over a long trail of outdated notes.
+
 ## Writing Rules
 
 ### Task summaries
@@ -88,6 +108,7 @@ Avoid:
 - repeating the whole task summary
 - multi-paragraph explanations
 - low-signal command transcripts
+- notes that used to be true but no longer describe the current plan
 
 ## Tagging Rules
 
@@ -147,7 +168,9 @@ When this skill applies:
 - check `wid --json` before creating a new task
 - prefer continuing an existing tagged task over creating duplicates
 - create a new task only when the work is genuinely new
+- after `wid now`, usually add an initial note immediately
 - leave a note when scope changes, a decision is made, or a useful next step becomes clear
+- when the task summary or notes become stale, update or remove them instead of only appending more text
 - close the task when the work is actually finished
 
 The human should be able to open `wid` and understand the work at a glance.
