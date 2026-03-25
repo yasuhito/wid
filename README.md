@@ -91,6 +91,13 @@ And if you wrote something by mistake, remove it:
 wid rm -i
 ```
 
+If you need to make a manual fix, you can also open the raw Markdown directly in your editor:
+
+```bash
+wid open
+wid open --archive
+```
+
 At any time, just run:
 
 ```bash
@@ -162,6 +169,8 @@ wid note TEXT...
 wid note
 wid edit
 wid edit -i
+wid open
+wid open --archive
 wid done
 wid done -i
 wid archive
@@ -175,6 +184,8 @@ wid rm -i
 - `wid focus -i` lets you choose an item to focus
 - `wid note` appends a note under the active item, or the latest open item
 - `wid edit` edits the active item, or the latest item
+- `wid open` opens `log.md` in `$EDITOR`
+- `wid open --archive` opens `archive.md` in `$EDITOR`
 - `wid done` closes the active item, or the latest pending item
 - `wid archive` moves all done items into `archive.md`
 - `wid rm -i` removes an item after confirmation

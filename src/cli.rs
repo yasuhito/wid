@@ -48,6 +48,11 @@ pub enum Commands {
         #[arg(help = "The note text to add. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
     },
+    #[command(about = "Open the log file in $EDITOR")]
+    Open {
+        #[arg(long = "archive", help = "Open archive.md instead of log.md")]
+        archive: bool,
+    },
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -62,6 +67,7 @@ pub fn run() -> anyhow::Result<()> {
         Some(Commands::Rm { interactive }) => commands::rm::run(interactive),
         Some(Commands::Now { text }) => commands::now::run(text),
         Some(Commands::Note { text }) => commands::note::run(text),
+        Some(Commands::Open { archive }) => commands::open::run(archive),
         None => commands::show::run(),
     }
 }

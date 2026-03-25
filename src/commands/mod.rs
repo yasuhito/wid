@@ -5,5 +5,6 @@ pub mod edit;
 pub mod focus;
 pub mod note;
 pub mod now;
+pub mod open;
 pub mod rm;
 pub mod show;
