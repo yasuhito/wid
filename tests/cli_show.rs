@@ -161,8 +161,18 @@ fn render_document_with_color_highlights_active_and_done_entries() {
 
     assert!(output.contains("\u{1b}["), "{output:?}");
     assert!(output.contains("11:32 active"), "{output:?}");
-    assert!(output.contains("  - first note"), "{output:?}");
+    assert!(output.contains("  📝 first note"), "{output:?}");
     assert!(output.contains("12:10 done"), "{output:?}");
-    assert!(output.contains("  - done note"), "{output:?}");
-    assert!(!output.contains("\n  - done note\n"), "{output:?}");
+    assert!(output.contains("  📝 done note"), "{output:?}");
+    assert!(!output.contains("\n  📝 done note\n"), "{output:?}");
+}
+
+#[test]
+fn render_document_shows_note_emoji_without_color() {
+    let document =
+        parser::parse_log("## 2026-03-24\n\n- [ ] 11:32 active\n  - first note\n").unwrap();
+
+    let output = show_command::render_document(&document, false);
+
+    assert!(output.contains("  📝 first note"), "{output:?}");
 }

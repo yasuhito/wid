@@ -5,7 +5,8 @@ use anyhow::{Context, Result, anyhow};
 
 use super::format::{format_day_section, format_entry, format_log};
 use super::model::{
-    DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, UnfinishedEntry,
+    DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, RemovableKind,
+    RemovableTarget, UnfinishedEntry,
 };
 use super::parser::{parse_day_heading, parse_entry_line, parse_log, parse_note_line};
 use super::paths::{default_archive_path, default_log_path};
@@ -58,6 +59,18 @@ pub fn collect_entries(path: &Path) -> Result<Vec<LogEntry>> {
     };
 
     Ok(collect_entries_from_contents(&contents))
+}
+
+pub fn collect_removable_targets(path: &Path) -> Result<Vec<RemovableTarget>> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to read log at {}", path.display()));
+        }
+    };
+
+    Ok(collect_removable_targets_from_contents(&contents))
 }
 
 pub fn collect_focus_entries(path: &Path) -> Result<Vec<FocusEntry>> {
@@ -225,18 +238,30 @@ pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
     }
 
-    let contents = read_log_contents(path)?;
-    let fresh_target = collect_entries_from_contents(&contents)
-        .into_iter()
-        .find(|entry| {
-            entry.ordinal == target.ordinal
-                && entry.date == target.date
+    let mut document = load_log_at_path(path)?;
+    let mut ordinal = 0usize;
+
+    for day in &mut document.days {
+        let mut index = 0usize;
+        while index < day.entries.len() {
+            let entry = &day.entries[index];
+            if ordinal == target.ordinal
+                && day.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
-        })
-        .ok_or_else(|| anyhow!("selected entry changed before it could be removed"))?;
+                && entry.state == target.state
+            {
+                day.entries.remove(index);
+                document.days.retain(|day| !day.entries.is_empty());
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+            ordinal += 1;
+            index += 1;
+        }
+    }
 
-    delete_entry_with_contents(path, &contents, &fresh_target)
+    Err(anyhow!("selected entry changed before it could be removed"))
 }
 
 pub fn delete_by_transient_id(path: &Path, id: &str) -> Result<()> {
@@ -268,6 +293,56 @@ pub fn delete_by_transient_id(path: &Path, id: &str) -> Result<()> {
     }
 
     Err(anyhow!("item changed or not found"))
+}
+
+pub fn delete_removable_target(path: &Path, target: &RemovableTarget) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+    let mut entry_ordinal = 0usize;
+
+    for day in &mut document.days {
+        let mut entry_index = 0usize;
+        while entry_index < day.entries.len() {
+            let entry = &mut day.entries[entry_index];
+            let entry_matches = entry_ordinal == target.entry_ordinal
+                && day.date == target.date
+                && entry.time == target.time
+                && entry.summary == target.summary
+                && entry.state == target.state;
+
+            match target.kind {
+                RemovableKind::Entry if entry_matches => {
+                    day.entries.remove(entry_index);
+                    document.days.retain(|day| !day.entries.is_empty());
+                    save_log_to_path(path, &document)?;
+                    return Ok(());
+                }
+                RemovableKind::Note if entry_matches => {
+                    let Some(note_ordinal) = target.note_ordinal else {
+                        break;
+                    };
+                    let Some(note_text) = target.note_text.as_deref() else {
+                        break;
+                    };
+                    if note_ordinal < entry.notes.len() && entry.notes[note_ordinal] == note_text {
+                        entry.notes.remove(note_ordinal);
+                        save_log_to_path(path, &document)?;
+                        return Ok(());
+                    }
+                    return Err(anyhow!("selected note changed before it could be removed"));
+                }
+                _ => {
+                    entry_ordinal += 1;
+                    entry_index += 1;
+                }
+            }
+        }
+    }
+
+    let message = match target.kind {
+        RemovableKind::Entry => "selected entry changed before it could be removed",
+        RemovableKind::Note => "selected note changed before it could be removed",
+    };
+    Err(anyhow!(message))
 }
 
 pub fn edit_entry_summary(path: &Path, target: &LogEntry, summary: &str) -> Result<()> {
@@ -550,6 +625,67 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
     entries
 }
 
+fn collect_removable_targets_from_contents(contents: &str) -> Vec<RemovableTarget> {
+    let mut targets = Vec::new();
+    let mut current_date: Option<String> = None;
+    let mut current_entry: Option<(String, String, EntryState, usize)> = None;
+    let mut entry_ordinal = 0usize;
+    let mut note_ordinal = 0usize;
+
+    for line in contents.lines() {
+        if let Some(date) = parse_day_heading(line) {
+            current_date = Some(date.to_string());
+            current_entry = None;
+            note_ordinal = 0;
+        } else if line.starts_with("## ") {
+            current_date = None;
+            current_entry = None;
+            note_ordinal = 0;
+        } else if let Some(date) = current_date.as_ref() {
+            if let Some(entry) = parse_entry_line(line) {
+                targets.push(RemovableTarget {
+                    kind: RemovableKind::Entry,
+                    date: date.clone(),
+                    time: entry.time.clone(),
+                    summary: entry.summary.clone(),
+                    state: entry.state,
+                    entry_ordinal,
+                    note_ordinal: None,
+                    note_text: None,
+                });
+                current_entry = Some((
+                    entry.time.clone(),
+                    entry.summary.clone(),
+                    entry.state,
+                    entry_ordinal,
+                ));
+                entry_ordinal += 1;
+                note_ordinal = 0;
+            } else if let Some(note) = parse_note_line(line) {
+                if let Some((time, summary, state, current_entry_ordinal)) = current_entry.as_ref()
+                {
+                    targets.push(RemovableTarget {
+                        kind: RemovableKind::Note,
+                        date: date.clone(),
+                        time: time.clone(),
+                        summary: summary.clone(),
+                        state: *state,
+                        entry_ordinal: *current_entry_ordinal,
+                        note_ordinal: Some(note_ordinal),
+                        note_text: Some(note.to_string()),
+                    });
+                    note_ordinal += 1;
+                }
+            } else {
+                current_entry = None;
+                note_ordinal = 0;
+            }
+        }
+    }
+
+    targets
+}
+
 fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
     let mut entries = Vec::new();
     let mut line_start = 0;
@@ -664,17 +800,6 @@ fn replace_entry_state_with_contents(
     updated.push_str(&updated_body);
     updated.push_str(ending);
     updated.push_str(&contents[end..]);
-
-    fs::write(path, updated)
-        .with_context(|| format!("failed to write log at {}", path.display()))?;
-    Ok(())
-}
-
-fn delete_entry_with_contents(path: &Path, contents: &str, target: &LogEntry) -> Result<()> {
-    let mut updated =
-        String::with_capacity(contents.len().saturating_sub(target.end - target.start));
-    updated.push_str(&contents[..target.start]);
-    updated.push_str(&contents[target.end..]);
 
     fs::write(path, updated)
         .with_context(|| format!("failed to write log at {}", path.display()))?;

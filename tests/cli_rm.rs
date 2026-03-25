@@ -97,17 +97,17 @@ fn write_log(home: &Path, contents: &str) {
 }
 
 #[test]
-fn rm_interactive_lists_all_entries_in_wid_order() {
+fn rm_interactive_lists_entries_and_notes_in_wid_order() {
     let dir = unique_temp_dir("rm-list-order");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 12:10 already done\n\n## 2026-03-25\n\n- [ ] 09:15 newest item\n",
+        "## 2026-03-24\n\n- [ ] 11:32 first unfinished\n  - first note\n- [x] 12:10 already done\n\n## 2026-03-25\n\n- [ ] 09:15 newest item\n  - newest note\n",
     )
     .unwrap();
 
-    let entries = store::collect_entries(&path).unwrap();
+    let entries = store::collect_removable_targets(&path).unwrap();
     assert_eq!(
         entries
             .iter()
@@ -115,8 +115,10 @@ fn rm_interactive_lists_all_entries_in_wid_order() {
             .collect::<Vec<_>>(),
         vec![
             "2026-03-24 [ ] 11:32 first unfinished".to_string(),
+            "  📝 first note".to_string(),
             "2026-03-24 [x] 12:10 already done".to_string(),
             "2026-03-25 [ ] 09:15 newest item".to_string(),
+            "  📝 newest note".to_string(),
         ]
     );
 }
@@ -132,7 +134,7 @@ fn rm_interactive_keeps_completed_entries_visible() {
     )
     .unwrap();
 
-    let entries = store::collect_entries(&path).unwrap();
+    let entries = store::collect_removable_targets(&path).unwrap();
     assert_eq!(
         entries[0].display_label(),
         "2026-03-25 [x] 09:15 investigate"
@@ -146,7 +148,7 @@ fn rm_command_interactive_deletes_selected_entry_after_confirmation() {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n\n## 2026-03-25\n\n- [ ] 09:15 selected item\n",
+        "## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n\n## 2026-03-25\n\n- [ ] 09:15 selected item\n",
     )
     .unwrap();
 
@@ -156,7 +158,28 @@ fn rm_command_interactive_deletes_selected_entry_after_confirmation() {
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n\n## 2026-03-25\n\n"
+        "## 2026-03-24\n\n- [ ] 11:32 first unfinished\n- [x] 11:48 already done\n"
+    );
+}
+
+#[test]
+fn rm_command_interactive_deletes_selected_note_after_confirmation() {
+    let dir = unique_temp_dir("rm-delete-selected-note");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-24\n\n- [ ] 11:32 first unfinished\n  - first note\n  - second note\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(1));
+    let mut confirmer = FakeConfirm::yes();
+    rm_command::run_interactive_at_path(&path, &mut picker, &mut confirmer).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "## 2026-03-24\n\n- [ ] 11:32 first unfinished\n  - second note\n"
     );
 }
 
@@ -165,11 +188,7 @@ fn rm_command_interactive_does_not_delete_when_confirmation_is_not_yes() {
     let dir = unique_temp_dir("rm-cancel-confirm");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 only item\n",
-    )
-    .unwrap();
+    fs::write(&path, "## 2026-03-24\n\n- [ ] 11:32 only item\n").unwrap();
 
     let before = fs::read_to_string(&path).unwrap();
     let mut picker = FakePicker::new(Some(0));
@@ -184,16 +203,12 @@ fn rm_store_rejects_stale_entry_targets() {
     let dir = unique_temp_dir("rm-stale-target");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 selected item\n",
-    )
-    .unwrap();
+    fs::write(&path, "## 2026-03-24\n\n- [ ] 11:32 selected item\n").unwrap();
 
     let target = store::collect_entries(&path).unwrap().pop().unwrap();
     fs::write(
         &path,
-        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 selected item (renamed)\n",
+        "## 2026-03-24\n\n- [ ] 11:32 selected item (renamed)\n",
     )
     .unwrap();
 

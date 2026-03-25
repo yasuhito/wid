@@ -128,7 +128,7 @@ fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: boo
 }
 
 fn render_note_line(state: EntryState, note: &str, colorize: bool) -> String {
-    let line = format!("  - {note}");
+    let line = format!("  📝 {note}");
     if !colorize {
         return line;
     }

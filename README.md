@@ -106,7 +106,7 @@ At any time, just run:
 wid
 ```
 
-That prints the whole log so you can see your current flow, including notes under each item.
+That prints the whole log so you can see your current flow, including `📝` notes under each item.
 
 The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
 
@@ -219,7 +219,7 @@ wid rm -i
 - `wid done -i` toggles done state for multiple items before confirmation
 - `wid archive` moves all done items into `archive.md`
 - `wid rm --id` removes a specific item or note by transient id from `wid --json`
-- `wid rm -i` removes an item after confirmation
+- `wid rm -i` removes an item or note after confirmation
 
 ## Storage
 

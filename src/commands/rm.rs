@@ -27,20 +27,20 @@ pub trait Confirm {
 }
 
 pub fn run_terminal_at_path(path: &Path, picker: &mut TerminalPicker) -> Result<()> {
-    let entries = store::collect_entries(path)?;
-    if entries.is_empty() {
+    let targets = store::collect_removable_targets(path)?;
+    if targets.is_empty() {
         return Err(anyhow!("no entries found"));
     }
 
-    let Some(index) = picker.pick_for_delete(&entries)? else {
+    let Some(index) = picker.pick_for_delete(&targets)? else {
         return Ok(());
     };
 
-    let Some(target) = entries.get(index) else {
+    let Some(target) = targets.get(index) else {
         return Err(anyhow!("invalid selection"));
     };
 
-    store::delete_entry(path, target)
+    store::delete_removable_target(path, target)
 }
 
 pub fn run_interactive_at_path(
@@ -48,21 +48,21 @@ pub fn run_interactive_at_path(
     picker: &mut impl Picker,
     confirmer: &mut impl Confirm,
 ) -> Result<()> {
-    let entries = store::collect_entries(path)?;
-    if entries.is_empty() {
+    let targets = store::collect_removable_targets(path)?;
+    if targets.is_empty() {
         return Err(anyhow!("no entries found"));
     }
 
-    let Some(index) = picker.pick(&entries)? else {
+    let Some(index) = picker.pick(&targets)? else {
         return Ok(());
     };
 
-    let Some(target) = entries.get(index) else {
+    let Some(target) = targets.get(index) else {
         return Err(anyhow!("invalid selection"));
     };
 
     if confirmer.confirm()? {
-        store::delete_entry(path, target)
+        store::delete_removable_target(path, target)
     } else {
         Ok(())
     }

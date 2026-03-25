@@ -75,6 +75,10 @@ pub struct LogDocument {
 
 pub trait PickerItem {
     fn display_label(&self) -> String;
+
+    fn delete_prompt(&self) -> &'static str {
+        "Delete selected entry? [y/N]"
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +158,54 @@ impl LogEntry {
 impl PickerItem for LogEntry {
     fn display_label(&self) -> String {
         self.display_label()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemovableKind {
+    Entry,
+    Note,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovableTarget {
+    pub kind: RemovableKind,
+    pub date: String,
+    pub time: String,
+    pub summary: String,
+    pub state: EntryState,
+    pub entry_ordinal: usize,
+    pub note_ordinal: Option<usize>,
+    pub note_text: Option<String>,
+}
+
+impl RemovableTarget {
+    pub fn display_label(&self) -> String {
+        match self.kind {
+            RemovableKind::Entry => format!(
+                "{} {} {} {}",
+                self.date,
+                self.state.checkbox(),
+                self.time,
+                self.summary
+            ),
+            RemovableKind::Note => {
+                format!("  📝 {}", self.note_text.as_deref().unwrap_or_default())
+            }
+        }
+    }
+}
+
+impl PickerItem for RemovableTarget {
+    fn display_label(&self) -> String {
+        self.display_label()
+    }
+
+    fn delete_prompt(&self) -> &'static str {
+        match self.kind {
+            RemovableKind::Entry => "Delete selected entry? [y/N]",
+            RemovableKind::Note => "Delete selected note? [y/N]",
+        }
     }
 }
 

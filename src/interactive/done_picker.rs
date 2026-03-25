@@ -360,7 +360,7 @@ fn render_frame<T: PickerItem>(
                 chunks[1].height.saturating_sub(1),
             );
             render_list(frame, list_area, entries, selected, theme);
-            render_confirmation_inline(frame, list_area, entries.len(), selected, theme);
+            render_confirmation_inline(frame, list_area, entries, selected, theme);
         }
     }
 }
@@ -412,7 +412,7 @@ fn render_done_frame(
 fn footer_text(mode: PickerMode) -> &'static str {
     match mode {
         PickerMode::Browse => "j/Down next, k/Up previous, Enter confirm, q/Esc cancel",
-        PickerMode::ConfirmDelete => "Delete selected entry? [y/N]",
+        PickerMode::ConfirmDelete => "Delete selected item? [y/N]",
     }
 }
 
@@ -480,7 +480,7 @@ fn render_label_list(
 fn render_confirmation_inline(
     frame: &mut Frame,
     area: Rect,
-    entry_count: usize,
+    entries: &[impl PickerItem],
     selected: usize,
     theme: PickerTheme,
 ) {
@@ -489,9 +489,12 @@ fn render_confirmation_inline(
     }
 
     let list_height = area.height;
-    let max_offset = entry_count.saturating_sub(list_height as usize);
+    let max_offset = entries.len().saturating_sub(list_height as usize);
     let offset = selected.min(max_offset);
-    let visible = entry_count.saturating_sub(offset).min(list_height as usize);
+    let visible = entries
+        .len()
+        .saturating_sub(offset)
+        .min(list_height as usize);
     let confirm_y = area.y.saturating_add(visible as u16);
 
     if confirm_y >= area.y.saturating_add(area.height) {
@@ -499,7 +502,7 @@ fn render_confirmation_inline(
     }
 
     let confirm_area = Rect::new(area.x + 2, confirm_y, area.width.saturating_sub(2), 1);
-    Paragraph::new(footer_text(PickerMode::ConfirmDelete))
+    Paragraph::new(entries[selected].delete_prompt())
         .style(theme.footer)
         .render(confirm_area, frame.buffer_mut());
 }
@@ -581,8 +584,15 @@ mod tests {
                 bg: style.bg.unwrap_or(Color::Reset),
             }
         }));
+        let footer = match mode {
+            PickerMode::Browse => footer_text(mode).to_string(),
+            PickerMode::ConfirmDelete => entries
+                .get(selected)
+                .map(|entry| entry.delete_prompt().to_string())
+                .unwrap_or_else(|| footer_text(mode).to_string()),
+        };
         rows.push(TestRow {
-            text: footer_text(mode).to_string(),
+            text: footer,
             fg: theme.footer.fg.unwrap_or(Color::Reset),
             bg: theme.footer.bg.unwrap_or(Color::Reset),
         });
