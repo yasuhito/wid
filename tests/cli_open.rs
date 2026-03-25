@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_imports)]
 
-#[path = "../src/log/paths.rs"]
-mod paths;
 #[path = "../src/commands/open.rs"]
 mod open_command;
+#[path = "../src/log/paths.rs"]
+mod paths;
 mod log {
     pub mod paths {
         pub use crate::paths::*;

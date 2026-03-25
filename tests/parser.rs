@@ -1,15 +1,15 @@
 #![allow(dead_code, unused_imports)]
 
 #[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
-#[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
-#[path = "../src/log/paths.rs"]
-mod paths;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
+#[path = "../src/log/paths.rs"]
+mod paths;
 
 use std::ffi::OsString;
 use std::path::PathBuf;

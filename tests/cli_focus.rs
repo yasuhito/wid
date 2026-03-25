@@ -1,21 +1,21 @@
 #![allow(dead_code, unused_imports)]
 
-#[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
+#[path = "../src/interactive/done_picker.rs"]
+mod done_picker;
 #[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
-#[path = "../src/interactive/done_picker.rs"]
-mod done_picker;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
@@ -41,8 +41,8 @@ mod log {
 mod focus_command;
 
 use std::fs;
-use std::process::Command;
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn unique_temp_dir(name: &str) -> PathBuf {
@@ -117,11 +117,7 @@ fn focus_interactive_errors_when_no_focusable_entry_exists() {
     let dir = unique_temp_dir("focus-empty");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        "# wid log\n\n## 2026-03-24\n\n- [x] 11:48 done\n",
-    )
-    .unwrap();
+    fs::write(&path, "# wid log\n\n## 2026-03-24\n\n- [x] 11:48 done\n").unwrap();
 
     let mut picker = FakePicker::new(Some(0));
     let error = focus_command::run_interactive_at_path(&path, &mut picker).unwrap_err();
@@ -198,7 +194,11 @@ fn focus_defaults_is_noop_when_latest_entry_is_already_active() {
     let dir = unique_temp_dir("focus-default-active");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first task\n- [>] 11:48 latest task\n").unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 first task\n- [>] 11:48 latest task\n",
+    )
+    .unwrap();
 
     focus_command::run_at_path(&path, false).unwrap();
 
@@ -232,7 +232,11 @@ fn focus_defaults_errors_when_all_entries_are_done() {
     let dir = unique_temp_dir("focus-default-all-done");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 first task\n- [x] 11:48 latest task\n").unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [x] 11:32 first task\n- [x] 11:48 latest task\n",
+    )
+    .unwrap();
 
     let error = focus_command::run_at_path(&path, false).unwrap_err();
 
@@ -277,7 +281,10 @@ impl done_picker::Picker for FakePicker {
         entries: &[T],
         selected: usize,
     ) -> anyhow::Result<Option<usize>> {
-        self.items = entries.iter().map(model::PickerItem::display_label).collect();
+        self.items = entries
+            .iter()
+            .map(model::PickerItem::display_label)
+            .collect();
         self.default_selected = Some(selected);
         Ok(self.result)
     }

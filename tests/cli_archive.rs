@@ -1,19 +1,19 @@
 #![allow(dead_code, unused_imports)]
 
 #[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
-#[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod log {
     pub mod model {
         pub use crate::model::*;
@@ -29,7 +29,7 @@ mod commands {
 }
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -55,11 +55,11 @@ fn run_wid(home: &PathBuf, args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
-fn log_path(home: &PathBuf) -> PathBuf {
+fn log_path(home: &Path) -> PathBuf {
     home.join(".local/share/wid/log.md")
 }
 
-fn archive_path(home: &PathBuf) -> PathBuf {
+fn archive_path(home: &Path) -> PathBuf {
     home.join(".local/share/wid/archive.md")
 }
 
@@ -98,16 +98,8 @@ fn archive_reuses_existing_archive_day_sections() {
     let log = log_path(&home);
     let archive = archive_path(&home);
     fs::create_dir_all(log.parent().unwrap()).unwrap();
-    fs::write(
-        &log,
-        "## 2026-03-24\n\n- [x] 11:32 finished task\n",
-    )
-    .unwrap();
-    fs::write(
-        &archive,
-        "## 2026-03-24\n\n- [x] 09:10 archived earlier\n",
-    )
-    .unwrap();
+    fs::write(&log, "## 2026-03-24\n\n- [x] 11:32 finished task\n").unwrap();
+    fs::write(&archive, "## 2026-03-24\n\n- [x] 09:10 archived earlier\n").unwrap();
 
     let output = run_wid(&home, &["archive"]);
 

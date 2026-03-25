@@ -1,21 +1,21 @@
 #![allow(dead_code, unused_imports)]
 
-#[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
+#[path = "../src/interactive/done_picker.rs"]
+mod done_picker;
 #[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
-#[path = "../src/interactive/done_picker.rs"]
-mod done_picker;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
@@ -217,7 +217,10 @@ impl done_picker::Picker for FakePicker {
         entries: &[T],
         selected: usize,
     ) -> anyhow::Result<Option<usize>> {
-        self.items = entries.iter().map(model::PickerItem::display_label).collect();
+        self.items = entries
+            .iter()
+            .map(model::PickerItem::display_label)
+            .collect();
         self.default_selected = Some(selected);
         Ok(self.result)
     }

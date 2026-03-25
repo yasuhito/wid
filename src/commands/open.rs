@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use crate::log::paths::{default_archive_path_from_home, default_log_path_from_home};
 
@@ -31,7 +31,12 @@ impl EditorLauncher for SystemEditorLauncher {
 pub fn run(open_archive: bool) -> Result<()> {
     let home = env::var_os("HOME").ok_or_else(|| anyhow!("HOME is not set"))?;
     let mut launcher = SystemEditorLauncher;
-    run_at_home(Path::new(&home), open_archive, env::var("EDITOR").ok().as_deref(), &mut launcher)
+    run_at_home(
+        Path::new(&home),
+        open_archive,
+        env::var("EDITOR").ok().as_deref(),
+        &mut launcher,
+    )
 }
 
 pub fn run_at_home(
@@ -56,7 +61,8 @@ pub fn run_at_home(
     }
 
     if !path.exists() {
-        fs::write(&path, "").with_context(|| format!("failed to create file at {}", path.display()))?;
+        fs::write(&path, "")
+            .with_context(|| format!("failed to create file at {}", path.display()))?;
     }
 
     launcher.launch(editor, &path)

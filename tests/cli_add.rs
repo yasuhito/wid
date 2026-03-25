@@ -1,11 +1,11 @@
 #![allow(dead_code, unused_imports)]
 
 #[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
-#[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
@@ -15,7 +15,7 @@ mod store;
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -41,16 +41,25 @@ fn run_wid(home: &PathBuf, args: &[&str], stdin: Option<&str>) -> std::process::
         command.stdin(Stdio::piped());
     }
 
-    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
 
     if let Some(input) = stdin {
-        child.stdin.as_mut().unwrap().write_all(input.as_bytes()).unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
     }
 
     child.wait_with_output().unwrap()
 }
 
-fn log_path(home: &PathBuf) -> PathBuf {
+fn log_path(home: &Path) -> PathBuf {
     home.join(".local/share/wid/log.md")
 }
 

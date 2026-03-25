@@ -33,12 +33,11 @@ pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
             continue;
         }
 
-        if let Some(note) = parse_note_line(line) {
-            if let Some(day) = current_day.as_mut() {
-                if let Some(entry) = day.entries.last_mut() {
-                    entry.notes.push(note.to_string());
-                }
-            }
+        if let Some(note) = parse_note_line(line)
+            && let Some(day) = current_day.as_mut()
+            && let Some(entry) = day.entries.last_mut()
+        {
+            entry.notes.push(note.to_string());
         }
     }
 
@@ -51,11 +50,7 @@ pub fn parse_log(input: &str) -> anyhow::Result<LogDocument> {
 
 pub(crate) fn parse_day_heading(line: &str) -> Option<&str> {
     let date = line.strip_prefix("## ")?;
-    if is_date_like(date) {
-        Some(date)
-    } else {
-        None
-    }
+    if is_date_like(date) { Some(date) } else { None }
 }
 
 pub(crate) fn parse_entry_line(line: &str) -> Option<Entry> {

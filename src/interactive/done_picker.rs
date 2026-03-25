@@ -93,7 +93,10 @@ impl PickerState {
 
 impl DonePickerState {
     pub fn new(states: Vec<EntryState>) -> Self {
-        Self { selected: 0, states }
+        Self {
+            selected: 0,
+            states,
+        }
     }
 
     pub fn selected(&self) -> usize {
@@ -170,7 +173,13 @@ impl Picker for TerminalPicker {
 
         loop {
             terminal.draw(|frame| {
-                render_frame(frame, entries, state.selected(), PickerMode::Browse, anchor_row)
+                render_frame(
+                    frame,
+                    entries,
+                    state.selected(),
+                    PickerMode::Browse,
+                    anchor_row,
+                )
             })?;
 
             if let Event::Key(key) = event::read()? {
@@ -250,7 +259,8 @@ impl TerminalPicker {
         let mut mode = PickerMode::Browse;
 
         loop {
-            terminal.draw(|frame| render_frame(frame, entries, state.selected(), mode, anchor_row))?;
+            terminal
+                .draw(|frame| render_frame(frame, entries, state.selected(), mode, anchor_row))?;
 
             if let Event::Key(key) = event::read()? {
                 match mode {
@@ -411,18 +421,12 @@ fn panel_area(area: Rect, anchor_row: u16, entry_count: usize, mode: PickerMode)
         PickerMode::Browse => entry_count.saturating_add(2),
         PickerMode::ConfirmDelete => entry_count.saturating_add(3),
     };
-    let panel_height = area
-        .height
-        .min(desired_rows.max(3) as u16)
-        .max(1);
-    let preferred_top = anchor_row.saturating_add(1).min(area.height.saturating_sub(1));
+    let panel_height = area.height.min(desired_rows.max(3) as u16).max(1);
+    let preferred_top = anchor_row
+        .saturating_add(1)
+        .min(area.height.saturating_sub(1));
     let panel_top = preferred_top.min(area.height.saturating_sub(panel_height));
-    Rect::new(
-        area.x,
-        area.y + panel_top,
-        area.width,
-        panel_height,
-    )
+    Rect::new(area.x, area.y + panel_top, area.width, panel_height)
 }
 
 fn confirm_delete_key(key: KeyEvent) -> bool {
@@ -515,7 +519,11 @@ impl Drop for TerminalGuard {
                 Clear(ClearType::CurrentLine)
             );
         }
-        let _ = execute!(stdout, cursor::MoveTo(self.clear_area.x, self.clear_area.y), cursor::Show);
+        let _ = execute!(
+            stdout,
+            cursor::MoveTo(self.clear_area.x, self.clear_area.y),
+            cursor::Show
+        );
     }
 }
 
@@ -573,19 +581,11 @@ mod tests {
                 bg: style.bg.unwrap_or(Color::Reset),
             }
         }));
-        if mode == PickerMode::Browse {
-            rows.push(TestRow {
-                text: footer_text(mode).to_string(),
-                fg: theme.footer.fg.unwrap_or(Color::Reset),
-                bg: theme.footer.bg.unwrap_or(Color::Reset),
-            });
-        } else {
-            rows.push(TestRow {
-                text: footer_text(mode).to_string(),
-                fg: theme.footer.fg.unwrap_or(Color::Reset),
-                bg: theme.footer.bg.unwrap_or(Color::Reset),
-            });
-        }
+        rows.push(TestRow {
+            text: footer_text(mode).to_string(),
+            fg: theme.footer.fg.unwrap_or(Color::Reset),
+            bg: theme.footer.bg.unwrap_or(Color::Reset),
+        });
         TestSurface { rows }
     }
 
@@ -717,6 +717,10 @@ mod tests {
             .unwrap();
 
         assert!(title_index > 0);
-        assert!(rendered.rows[..title_index].iter().all(|row| row.text.is_empty()));
+        assert!(
+            rendered.rows[..title_index]
+                .iter()
+                .all(|row| row.text.is_empty())
+        );
     }
 }

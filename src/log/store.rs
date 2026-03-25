@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use super::format::{format_day_section, format_entry, format_log};
-use super::model::{DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, UnfinishedEntry};
+use super::model::{
+    DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, UnfinishedEntry,
+};
 use super::parser::{parse_day_heading, parse_entry_line, parse_log, parse_note_line};
 use super::paths::{default_archive_path, default_log_path};
 
@@ -17,7 +19,9 @@ pub fn load_log_at_path(path: &Path) -> Result<LogDocument> {
     match fs::read_to_string(path) {
         Ok(contents) => parse_log(&contents),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(LogDocument::default()),
-        Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+        Err(error) => {
+            Err(error).with_context(|| format!("failed to read log at {}", path.display()))
+        }
     }
 }
 
@@ -99,14 +103,21 @@ pub fn mark_last_unfinished_entry_done(path: &Path, _timestamp: &str) -> Result<
         return mark_entry_done_with_contents(path, &contents, target.start, target.end);
     }
 
-    let Some(target) = collect_unfinished_entries_from_contents(&contents).last().cloned() else {
+    let Some(target) = collect_unfinished_entries_from_contents(&contents)
+        .last()
+        .cloned()
+    else {
         return Err(anyhow!("no unfinished entry found"));
     };
 
     mark_entry_done_with_contents(path, &contents, target.start, target.end)
 }
 
-pub fn mark_unfinished_entry_done(path: &Path, target: &UnfinishedEntry, _timestamp: &str) -> Result<()> {
+pub fn mark_unfinished_entry_done(
+    path: &Path,
+    target: &UnfinishedEntry,
+    _timestamp: &str,
+) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
@@ -185,7 +196,8 @@ pub fn apply_entry_state_updates(path: &Path, updates: &[(LogEntry, EntryState)]
         updated.replace_range(start..end, &(updated_body + ending));
     }
 
-    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    fs::write(path, updated)
+        .with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
 }
 
@@ -252,7 +264,13 @@ pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     }
 
     let demoted = demote_active_entries_in_contents(&contents);
-    replace_entry_state_with_contents(path, &demoted, fresh_target.start, fresh_target.end, EntryState::Active)
+    replace_entry_state_with_contents(
+        path,
+        &demoted,
+        fresh_target.start,
+        fresh_target.end,
+        EntryState::Active,
+    )
 }
 
 pub fn focus_latest_entry(path: &Path) -> Result<()> {
@@ -267,7 +285,11 @@ pub fn focus_latest_entry(path: &Path) -> Result<()> {
         return Err(anyhow!("no entry found"));
     }
 
-    let Some(target) = entries.into_iter().rev().find(|entry| !entry.state.is_done()) else {
+    let Some(target) = entries
+        .into_iter()
+        .rev()
+        .find(|entry| !entry.state.is_done())
+    else {
         return Err(anyhow!("all entries are already done"));
     };
 
@@ -298,7 +320,8 @@ pub fn append_note_to_latest_open_entry(path: &Path, note: &str) -> Result<()> {
     updated.push_str(line_ending);
     updated.push_str(&contents[target.insert_at..]);
 
-    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    fs::write(path, updated)
+        .with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
 }
 
@@ -313,8 +336,9 @@ pub fn archive_done_entries_at_paths(log_path: &Path, archive_path: &Path) -> Re
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
-                return Err(error)
-                    .with_context(|| format!("failed to remove archive at {}", archive_path.display()))
+                return Err(error).with_context(|| {
+                    format!("failed to remove archive at {}", archive_path.display())
+                });
             }
         }
     } else {
@@ -334,7 +358,10 @@ fn save_log_to_path(path: &Path, document: &LogDocument) -> Result<()> {
     Ok(())
 }
 
-fn archive_documents(log_document: LogDocument, mut archive_document: LogDocument) -> (LogDocument, LogDocument) {
+fn archive_documents(
+    log_document: LogDocument,
+    mut archive_document: LogDocument,
+) -> (LogDocument, LogDocument) {
     let mut remaining_days = Vec::new();
 
     for day in log_document.days {
@@ -350,7 +377,11 @@ fn archive_documents(log_document: LogDocument, mut archive_document: LogDocumen
         }
 
         if !archived_entries.is_empty() {
-            if let Some(existing_day) = archive_document.days.iter_mut().find(|existing| existing.date == day.date) {
+            if let Some(existing_day) = archive_document
+                .days
+                .iter_mut()
+                .find(|existing| existing.date == day.date)
+            {
                 existing_day.entries.extend(archived_entries);
             } else {
                 archive_document.days.push(DaySection {
@@ -371,7 +402,9 @@ fn archive_documents(log_document: LogDocument, mut archive_document: LogDocumen
     archive_document.days.retain(|day| !day.entries.is_empty());
 
     (
-        LogDocument { days: remaining_days },
+        LogDocument {
+            days: remaining_days,
+        },
         archive_document,
     )
 }
@@ -380,7 +413,9 @@ fn read_log_contents(path: &Path) -> Result<String> {
     match fs::read_to_string(path) {
         Ok(contents) => Ok(contents),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-        Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+        Err(error) => {
+            Err(error).with_context(|| format!("failed to read log at {}", path.display()))
+        }
     }
 }
 
@@ -397,19 +432,18 @@ fn collect_unfinished_entries_from_contents(contents: &str) -> Vec<UnfinishedEnt
             current_date = Some(date.to_string());
         } else if line.starts_with("## ") {
             current_date = None;
-        } else if let Some(date) = current_date.as_ref() {
-            if let Some(entry) = parse_entry_line(line) {
-                if entry.state.is_pending() {
-                    entries.push(UnfinishedEntry {
-                        date: date.clone(),
-                        time: entry.time,
-                        summary: entry.summary,
-                        ordinal: entries.len(),
-                        start: line_start,
-                        end: line_end,
-                    });
-                }
-            }
+        } else if let Some(date) = current_date.as_ref()
+            && let Some(entry) = parse_entry_line(line)
+            && entry.state.is_pending()
+        {
+            entries.push(UnfinishedEntry {
+                date: date.clone(),
+                time: entry.time,
+                summary: entry.summary,
+                ordinal: entries.len(),
+                start: line_start,
+                end: line_end,
+            });
         }
 
         line_start = line_end;
@@ -431,18 +465,18 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
             current_date = Some(date.to_string());
         } else if line.starts_with("## ") {
             current_date = None;
-        } else if let Some(date) = current_date.as_ref() {
-            if let Some(entry) = parse_entry_line(line) {
-                entries.push(LogEntry {
-                    date: date.clone(),
-                    time: entry.time,
-                    summary: entry.summary,
-                    state: entry.state,
-                    ordinal: entries.len(),
-                    start: line_start,
-                    end: line_end,
-                });
-            }
+        } else if let Some(date) = current_date.as_ref()
+            && let Some(entry) = parse_entry_line(line)
+        {
+            entries.push(LogEntry {
+                date: date.clone(),
+                time: entry.time,
+                summary: entry.summary,
+                state: entry.state,
+                ordinal: entries.len(),
+                start: line_start,
+                end: line_end,
+            });
         }
 
         line_start = line_end;
@@ -464,20 +498,19 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
             current_date = Some(date.to_string());
         } else if line.starts_with("## ") {
             current_date = None;
-        } else if let Some(date) = current_date.as_ref() {
-            if let Some(entry) = parse_entry_line(line) {
-                if !entry.state.is_done() {
-                    entries.push(FocusEntry {
-                        date: date.clone(),
-                        time: entry.time,
-                        summary: entry.summary,
-                        state: entry.state,
-                        ordinal: entries.len(),
-                        start: line_start,
-                        end: line_end,
-                    });
-                }
-            }
+        } else if let Some(date) = current_date.as_ref()
+            && let Some(entry) = parse_entry_line(line)
+            && !entry.state.is_done()
+        {
+            entries.push(FocusEntry {
+                date: date.clone(),
+                time: entry.time,
+                summary: entry.summary,
+                state: entry.state,
+                ordinal: entries.len(),
+                start: line_start,
+                end: line_end,
+            });
         }
 
         line_start = line_end;
@@ -541,7 +574,12 @@ fn collect_note_targets_from_contents(contents: &str) -> Option<NoteTarget> {
     active_target.or(last_pending_target)
 }
 
-fn mark_entry_done_with_contents(path: &Path, contents: &str, start: usize, end: usize) -> Result<()> {
+fn mark_entry_done_with_contents(
+    path: &Path,
+    contents: &str,
+    start: usize,
+    end: usize,
+) -> Result<()> {
     replace_entry_state_with_contents(path, contents, start, end, EntryState::Done)
 }
 
@@ -562,20 +600,28 @@ fn replace_entry_state_with_contents(
     updated.push_str(ending);
     updated.push_str(&contents[end..]);
 
-    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    fs::write(path, updated)
+        .with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
 }
 
 fn delete_entry_with_contents(path: &Path, contents: &str, target: &LogEntry) -> Result<()> {
-    let mut updated = String::with_capacity(contents.len().saturating_sub(target.end - target.start));
+    let mut updated =
+        String::with_capacity(contents.len().saturating_sub(target.end - target.start));
     updated.push_str(&contents[..target.start]);
     updated.push_str(&contents[target.end..]);
 
-    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    fs::write(path, updated)
+        .with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
 }
 
-fn edit_entry_summary_with_contents(path: &Path, contents: &str, target: &LogEntry, summary: &str) -> Result<()> {
+fn edit_entry_summary_with_contents(
+    path: &Path,
+    contents: &str,
+    target: &LogEntry,
+    summary: &str,
+) -> Result<()> {
     let mut updated = String::with_capacity(contents.len() + summary.len());
     updated.push_str(&contents[..target.start]);
     let segment = &contents[target.start..target.end];
@@ -592,7 +638,8 @@ fn edit_entry_summary_with_contents(path: &Path, contents: &str, target: &LogEnt
     updated.push_str(ending);
     updated.push_str(&contents[target.end..]);
 
-    fs::write(path, updated).with_context(|| format!("failed to write log at {}", path.display()))?;
+    fs::write(path, updated)
+        .with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
 }
 
@@ -610,11 +657,17 @@ fn append_log_entry_to_path(path: &Path, date: &str, entry: &Entry) -> Result<()
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             write_new_log(path, date, entry)
         }
-        Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+        Err(error) => {
+            Err(error).with_context(|| format!("failed to read log at {}", path.display()))
+        }
     }
 }
 
-fn append_log_entry_to_path_without_demoting_active(path: &Path, date: &str, entry: &Entry) -> Result<()> {
+fn append_log_entry_to_path_without_demoting_active(
+    path: &Path,
+    date: &str,
+    entry: &Entry,
+) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
@@ -622,8 +675,12 @@ fn append_log_entry_to_path_without_demoting_active(path: &Path, date: &str, ent
 
     match fs::read_to_string(path) {
         Ok(contents) => append_to_existing_log(path, &contents, date, entry),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => write_new_log(path, date, entry),
-        Err(error) => Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            write_new_log(path, date, entry)
+        }
+        Err(error) => {
+            Err(error).with_context(|| format!("failed to read log at {}", path.display()))
+        }
     }
 }
 
@@ -648,7 +705,8 @@ fn append_to_existing_log(path: &Path, contents: &str, date: &str, entry: &Entry
 
     if let Some(insertion_point) = find_existing_day_insertion_point(contents, date) {
         let line_ending = newline_ending(contents);
-        let needs_separator = insertion_point > 0 && !contents[..insertion_point].ends_with(line_ending);
+        let needs_separator =
+            insertion_point > 0 && !contents[..insertion_point].ends_with(line_ending);
         let mut updated = String::with_capacity(contents.len() + entry.summary.len() + 16);
         updated.push_str(&contents[..insertion_point]);
         if needs_separator {
@@ -671,13 +729,17 @@ fn append_new_day_at_eof(path: &Path, contents: &str, date: &str, entry: &Entry)
     if !updated.is_empty() && !updated.ends_with(line_ending) {
         updated.push_str(line_ending);
     }
-    if updated.ends_with(line_ending) && !updated.ends_with(&format!("{line_ending}{line_ending}")) {
+    if updated.ends_with(line_ending) && !updated.ends_with(&format!("{line_ending}{line_ending}"))
+    {
         updated.push_str(line_ending);
     }
-    updated.push_str(&format_day_section(&DaySection {
-        date: date.to_string(),
-        entries: vec![entry.clone()],
-    }).replace('\n', line_ending));
+    updated.push_str(
+        &format_day_section(&DaySection {
+            date: date.to_string(),
+            entries: vec![entry.clone()],
+        })
+        .replace('\n', line_ending),
+    );
 
     fs::write(path, updated)
         .with_context(|| format!("failed to write log at {}", path.display()))?;
@@ -728,7 +790,9 @@ fn newline_ending(contents: &str) -> &str {
 fn collect_active_entry_from_contents(contents: &str) -> Option<LogEntry> {
     collect_entries_from_contents(contents)
         .into_iter()
-        .find(|entry| entry_line_state(contents, entry.start, entry.end) == Some(EntryState::Active))
+        .find(|entry| {
+            entry_line_state(contents, entry.start, entry.end) == Some(EntryState::Active)
+        })
 }
 
 fn demote_active_entries_in_contents(contents: &str) -> String {

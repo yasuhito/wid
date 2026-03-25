@@ -156,7 +156,13 @@ mod tests {
             end: 0,
         };
 
-        assert_eq!(done_entry.display_label(), "2026-03-25 [x] 09:15 completed work");
-        assert_eq!(non_done_entry.display_label(), "2026-03-25 [ ] 09:16 investigate [x]");
+        assert_eq!(
+            done_entry.display_label(),
+            "2026-03-25 [x] 09:15 completed work"
+        );
+        assert_eq!(
+            non_done_entry.display_label(),
+            "2026-03-25 [ ] 09:16 investigate [x]"
+        );
     }
 }

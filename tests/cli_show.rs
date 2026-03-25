@@ -1,11 +1,11 @@
 #![allow(dead_code, unused_imports)]
 
 #[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
-#[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]

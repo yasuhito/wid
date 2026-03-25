@@ -1,7 +1,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 pub fn default_log_path_from_home(home: &Path) -> PathBuf {
     home.join(".local/share/wid/log.md")

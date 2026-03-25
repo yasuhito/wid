@@ -1,21 +1,21 @@
 #![allow(dead_code, unused_imports)]
 
-#[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
+#[path = "../src/interactive/done_picker.rs"]
+mod done_picker;
 #[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
-#[path = "../src/interactive/done_picker.rs"]
-mod done_picker;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
@@ -42,7 +42,7 @@ mod done_command;
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -68,20 +68,29 @@ fn run_wid(home: &PathBuf, args: &[&str], stdin: Option<&str>) -> std::process::
         command.stdin(Stdio::piped());
     }
 
-    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
 
     if let Some(input) = stdin {
-        child.stdin.as_mut().unwrap().write_all(input.as_bytes()).unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
     }
 
     child.wait_with_output().unwrap()
 }
 
-fn log_path(home: &PathBuf) -> PathBuf {
+fn log_path(home: &Path) -> PathBuf {
     home.join(".local/share/wid/log.md")
 }
 
-fn write_log(home: &PathBuf, contents: &str) {
+fn write_log(home: &Path, contents: &str) {
     let path = log_path(home);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, contents).unwrap();
@@ -99,8 +108,14 @@ fn done_command_marks_last_unfinished_entry() {
 
     assert!(output.status.success(), "{output:?}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
-    assert!(contents.contains("- [x] 12:10 実装方針を見直した"), "{contents}");
-    assert!(contents.contains("- [x] 11:48 レビュー指摘を反映"), "{contents}");
+    assert!(
+        contents.contains("- [x] 12:10 実装方針を見直した"),
+        "{contents}"
+    );
+    assert!(
+        contents.contains("- [x] 11:48 レビュー指摘を反映"),
+        "{contents}"
+    );
 }
 
 #[test]
@@ -115,10 +130,19 @@ fn done_command_marks_active_entry_first() {
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("- [x] 12:10 実装方針を見直した"), "{stdout}");
+    assert!(
+        stdout.contains("- [x] 12:10 実装方針を見直した"),
+        "{stdout}"
+    );
     let contents = fs::read_to_string(log_path(&home)).unwrap();
-    assert!(contents.contains("- [ ] 11:32 CI が落ちていたので修正"), "{contents}");
-    assert!(contents.contains("- [x] 12:10 実装方針を見直した"), "{contents}");
+    assert!(
+        contents.contains("- [ ] 11:32 CI が落ちていたので修正"),
+        "{contents}"
+    );
+    assert!(
+        contents.contains("- [x] 12:10 実装方針を見直した"),
+        "{contents}"
+    );
 }
 
 #[test]
@@ -133,9 +157,18 @@ fn done_command_skips_already_done_trailing_entries() {
 
     assert!(output.status.success(), "{output:?}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
-    assert!(contents.contains("- [x] 11:32 CI が落ちていたので修正"), "{contents}");
-    assert!(contents.contains("- [x] 11:48 レビュー指摘を反映"), "{contents}");
-    assert!(contents.contains("- [x] 12:10 実装方針を見直した"), "{contents}");
+    assert!(
+        contents.contains("- [x] 11:32 CI が落ちていたので修正"),
+        "{contents}"
+    );
+    assert!(
+        contents.contains("- [x] 11:48 レビュー指摘を反映"),
+        "{contents}"
+    );
+    assert!(
+        contents.contains("- [x] 12:10 実装方針を見直した"),
+        "{contents}"
+    );
 }
 
 #[test]
@@ -404,7 +437,10 @@ fn done_store_rejects_stale_unfinished_entry_targets() {
     )
     .unwrap();
 
-    let target = store::collect_unfinished_entries(&path).unwrap().pop().unwrap();
+    let target = store::collect_unfinished_entries(&path)
+        .unwrap()
+        .pop()
+        .unwrap();
     fs::write(
         &path,
         "# wid log\n\n## 2026-03-24\n\n- [ ] 11:32 only unfinished (renamed)\n",

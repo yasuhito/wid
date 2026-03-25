@@ -31,7 +31,11 @@ pub fn format_day_section(day: &DaySection) -> String {
 
 pub fn format_log(document: &LogDocument) -> String {
     let mut output = String::new();
-    let non_empty_days: Vec<_> = document.days.iter().filter(|day| !day.entries.is_empty()).collect();
+    let non_empty_days: Vec<_> = document
+        .days
+        .iter()
+        .filter(|day| !day.entries.is_empty())
+        .collect();
 
     for (index, day) in non_empty_days.iter().enumerate() {
         if index > 0 {

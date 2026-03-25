@@ -1,10 +1,10 @@
-use std::io::{self, BufRead, IsTerminal, Write};
 use std::fs;
+use std::io::{self, BufRead, IsTerminal, Write};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::Local;
-use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use rustyline::error::ReadlineError;
 
 use crate::commands::show::print_log_if_changed;
 use crate::log::{paths::default_log_path, store::append_log_entry};
@@ -51,9 +51,7 @@ fn read_summary_with_line_editor() -> Result<String> {
 
     match summary {
         Ok(line) => validate_summary(line),
-        Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-            Err(anyhow!("empty summary"))
-        }
+        Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => Err(anyhow!("empty summary")),
         Err(error) => Err(error).context("failed to read summary"),
     }
 }

@@ -1,23 +1,23 @@
 #![allow(dead_code, unused_imports)]
 
 #[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
-#[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
+#[path = "../src/commands/note.rs"]
+mod note_command;
+#[path = "../src/commands/now.rs"]
+mod now_command;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
-#[path = "../src/commands/now.rs"]
-mod now_command;
-#[path = "../src/commands/note.rs"]
-mod note_command;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod log {
     pub mod model {
         pub use crate::model::*;

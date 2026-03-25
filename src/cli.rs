@@ -3,7 +3,10 @@ use clap::{Parser, Subcommand};
 use crate::commands;
 
 #[derive(Debug, Parser)]
-#[command(name = "wid", about = "Track what you're doing in a global markdown log")]
+#[command(
+    name = "wid",
+    about = "Track what you're doing in a global markdown log"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -20,22 +23,38 @@ pub enum Commands {
     Archive,
     #[command(about = "Mark an item as done")]
     Done {
-        #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
+        #[arg(
+            short = 'i',
+            long = "interactive",
+            help = "Choose an item interactively"
+        )]
         interactive: bool,
     },
     #[command(about = "Edit an existing item summary")]
     Edit {
-        #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
+        #[arg(
+            short = 'i',
+            long = "interactive",
+            help = "Choose an item interactively"
+        )]
         interactive: bool,
     },
     #[command(about = "Focus an existing item")]
     Focus {
-        #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
+        #[arg(
+            short = 'i',
+            long = "interactive",
+            help = "Choose an item interactively"
+        )]
         interactive: bool,
     },
     #[command(about = "Remove an item")]
     Rm {
-        #[arg(short = 'i', long = "interactive", help = "Choose an item interactively")]
+        #[arg(
+            short = 'i',
+            long = "interactive",
+            help = "Choose an item interactively"
+        )]
         interactive: bool,
     },
     #[command(about = "Add a new active item and focus it immediately")]

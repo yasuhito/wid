@@ -1,21 +1,21 @@
 #![allow(dead_code, unused_imports)]
 
-#[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
+#[path = "../src/interactive/done_picker.rs"]
+mod done_picker;
 #[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
-#[path = "../src/interactive/done_picker.rs"]
-mod done_picker;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
@@ -42,7 +42,7 @@ mod rm_command;
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -68,20 +68,29 @@ fn run_wid(home: &PathBuf, args: &[&str], stdin: Option<&str>) -> std::process::
         command.stdin(Stdio::piped());
     }
 
-    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
 
     if let Some(input) = stdin {
-        child.stdin.as_mut().unwrap().write_all(input.as_bytes()).unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
     }
 
     child.wait_with_output().unwrap()
 }
 
-fn log_path(home: &PathBuf) -> PathBuf {
+fn log_path(home: &Path) -> PathBuf {
     home.join(".local/share/wid/log.md")
 }
 
-fn write_log(home: &PathBuf, contents: &str) {
+fn write_log(home: &Path, contents: &str) {
     let path = log_path(home);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, contents).unwrap();
@@ -124,7 +133,10 @@ fn rm_interactive_keeps_completed_entries_visible() {
     .unwrap();
 
     let entries = store::collect_entries(&path).unwrap();
-    assert_eq!(entries[0].display_label(), "2026-03-25 [x] 09:15 investigate");
+    assert_eq!(
+        entries[0].display_label(),
+        "2026-03-25 [x] 09:15 investigate"
+    );
 }
 
 #[test]
@@ -198,7 +210,8 @@ fn rm_store_errors_when_log_has_no_entries() {
 
     let mut picker = FakePicker::new(Some(0));
     let mut confirmer = FakeConfirm::yes();
-    let error = rm_command::run_interactive_at_path(&path, &mut picker, &mut confirmer).unwrap_err();
+    let error =
+        rm_command::run_interactive_at_path(&path, &mut picker, &mut confirmer).unwrap_err();
     assert!(format!("{error:#}").contains("no entries"), "{error:#}");
 }
 

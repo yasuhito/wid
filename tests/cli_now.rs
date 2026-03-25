@@ -1,19 +1,19 @@
 #![allow(dead_code, unused_imports)]
 
 #[allow(dead_code)]
-#[path = "../src/log/model.rs"]
-mod model;
-#[allow(dead_code)]
 #[path = "../src/log/format.rs"]
 mod format;
+#[allow(dead_code)]
+#[path = "../src/log/model.rs"]
+mod model;
 #[path = "../src/log/parser.rs"]
 mod parser;
 #[path = "../src/log/paths.rs"]
 mod paths;
-#[path = "../src/log/store.rs"]
-mod store;
 #[path = "../src/commands/show.rs"]
 mod show_command;
+#[path = "../src/log/store.rs"]
+mod store;
 mod log {
     pub mod model {
         pub use crate::model::*;
@@ -30,7 +30,7 @@ mod commands {
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -56,20 +56,29 @@ fn run_wid(home: &PathBuf, args: &[&str], stdin: Option<&str>) -> std::process::
         command.stdin(Stdio::piped());
     }
 
-    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
 
     if let Some(input) = stdin {
-        child.stdin.as_mut().unwrap().write_all(input.as_bytes()).unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
     }
 
     child.wait_with_output().unwrap()
 }
 
-fn log_path(home: &PathBuf) -> PathBuf {
+fn log_path(home: &Path) -> PathBuf {
     home.join(".local/share/wid/log.md")
 }
 
-fn log_contents(home: &PathBuf) -> String {
+fn log_contents(home: &Path) -> String {
     fs::read_to_string(log_path(home)).unwrap()
 }
 
@@ -127,8 +136,7 @@ fn append_log_entry_creates_new_file_with_today_section_and_entry() {
     let dir = unique_temp_dir("append-create");
     let path = dir.join(".local/share/wid/log.md");
 
-    store::append_log_entry(&path, "2026-03-24", "11:32", "CI が落ちていたので修正")
-        .unwrap();
+    store::append_log_entry(&path, "2026-03-24", "11:32", "CI が落ちていたので修正").unwrap();
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),

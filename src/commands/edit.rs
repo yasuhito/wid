@@ -1,10 +1,10 @@
+use std::fs;
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::Path;
-use std::fs;
 
-use anyhow::{anyhow, Context, Result};
-use rustyline::error::ReadlineError;
+use anyhow::{Context, Result, anyhow};
 use rustyline::DefaultEditor;
+use rustyline::error::ReadlineError;
 
 use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
