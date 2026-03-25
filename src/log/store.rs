@@ -219,13 +219,14 @@ pub fn focus_latest_entry(path: &Path) -> Result<()> {
     }
 
     let contents = read_log_contents(path)?;
-    let Some(target) = collect_entries_from_contents(&contents).last().cloned() else {
+    let entries = collect_entries_from_contents(&contents);
+    if entries.is_empty() {
         return Err(anyhow!("no entry found"));
-    };
-
-    if target.state.is_done() {
-        return Err(anyhow!("latest entry is already done"));
     }
+
+    let Some(target) = entries.into_iter().rev().find(|entry| !entry.state.is_done()) else {
+        return Err(anyhow!("all entries are already done"));
+    };
 
     if target.state.is_active() {
         return Ok(());
