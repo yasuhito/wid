@@ -39,11 +39,16 @@ pub enum Commands {
 Examples:
   wid add add examples to md-edit help
     Add a pending item to the backlog.
+  echo '--json output follow-up' | wid add
+    Add a pending item from standard input.
   wid add
     Prompt for one line of input and add it as pending."
     )]
     Add {
-        #[arg(help = "The item text to add. If omitted, wid prompts for one line of input.")]
+        #[arg(
+            help = "The item text to add. If omitted, wid prompts for one line of input.",
+            allow_hyphen_values = true
+        )]
         text: Vec<String>,
     },
     #[command(
@@ -136,11 +141,16 @@ Examples:
 Examples:
   wid now support note editing in rm -i
     Add a new active item and focus it immediately.
+  echo '--id support for agent workflows' | wid now
+    Add a new active item from standard input.
   wid now
     Prompt for one line of input and make it active."
     )]
     Now {
-        #[arg(help = "The item text to start now. If omitted, wid prompts for one line of input.")]
+        #[arg(
+            help = "The item text to start now. If omitted, wid prompts for one line of input.",
+            allow_hyphen_values = true
+        )]
         text: Vec<String>,
     },
     #[command(
@@ -151,11 +161,16 @@ Examples:
     Add a note to the active item, or the latest open item.
   wid note --id 8f3c2d1a6b4e waiting for CI to finish
     Add a note to a specific item by transient id.
+  echo '--json shape' | wid note --id 8f3c2d1a6b4e
+    Add a note from standard input to a specific item.
   wid note
     Prompt for one line of input and add it as a note."
     )]
     Note {
-        #[arg(help = "The note text to add. If omitted, wid prompts for one line of input.")]
+        #[arg(
+            help = "The note text to add. If omitted, wid prompts for one line of input.",
+            allow_hyphen_values = true
+        )]
         text: Vec<String>,
         #[arg(long = "id", help = "Add a note to a specific item by transient id")]
         id: Option<String>,
@@ -189,5 +204,51 @@ pub fn run() -> anyhow::Result<()> {
         Some(Commands::Note { text, id }) => commands::note::run(text, id),
         Some(Commands::Open { archive }) => commands::open::run(archive),
         None => commands::show::run(cli.json),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Commands};
+    use clap::Parser;
+
+    #[test]
+    fn add_accepts_hyphen_prefixed_text_without_double_dash() {
+        let cli = Cli::try_parse_from(["wid", "add", "--id", "support", "for", "agents"])
+            .expect("add should treat hyphen-prefixed values as text");
+
+        match cli.command {
+            Some(Commands::Add { text }) => {
+                assert_eq!(text, vec!["--id", "support", "for", "agents"]);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn now_accepts_hyphen_prefixed_text_without_double_dash() {
+        let cli = Cli::try_parse_from(["wid", "now", "--id", "support", "for", "agents"])
+            .expect("now should treat hyphen-prefixed values as text");
+
+        match cli.command {
+            Some(Commands::Now { text }) => {
+                assert_eq!(text, vec!["--id", "support", "for", "agents"]);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn note_accepts_hyphen_prefixed_text_after_target_id() {
+        let cli = Cli::try_parse_from(["wid", "note", "--id", "entry_123", "--json", "shape"])
+            .expect("note should allow hyphen-prefixed note text after --id");
+
+        match cli.command {
+            Some(Commands::Note { id, text }) => {
+                assert_eq!(id.as_deref(), Some("entry_123"));
+                assert_eq!(text, vec!["--json", "shape"]);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
     }
 }

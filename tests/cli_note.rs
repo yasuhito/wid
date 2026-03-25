@@ -39,8 +39,9 @@ mod commands {
 }
 
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn unique_temp_dir(name: &str) -> PathBuf {
@@ -57,12 +58,30 @@ fn wid_bin() -> &'static str {
     env!("CARGO_BIN_EXE_wid")
 }
 
-fn run_wid(home: &PathBuf, args: &[&str]) -> std::process::Output {
-    Command::new(wid_bin())
-        .env("HOME", home)
-        .args(args)
-        .output()
-        .unwrap()
+fn run_wid(home: &PathBuf, args: &[&str], stdin: Option<&str>) -> std::process::Output {
+    let mut command = Command::new(wid_bin());
+    command.env("HOME", home).args(args);
+
+    if stdin.is_some() {
+        command.stdin(Stdio::piped());
+    }
+
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    if let Some(input) = stdin {
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
+    }
+
+    child.wait_with_output().unwrap()
 }
 
 #[test]
@@ -145,7 +164,7 @@ fn note_appends_to_entry_by_transient_id() {
     )
     .unwrap();
 
-    let json_output = run_wid(&home, &["--json"]);
+    let json_output = run_wid(&home, &["--json"], None);
     assert!(json_output.status.success(), "{json_output:?}");
     let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
     let id = value["days"][0]["entries"][1]["id"].as_str().unwrap();
@@ -165,7 +184,7 @@ fn note_by_id_errors_when_item_changed() {
     fs::create_dir_all(log_path.parent().unwrap()).unwrap();
     fs::write(&log_path, "## 2026-03-25\n\n- [ ] 08:12 pending item\n").unwrap();
 
-    let json_output = run_wid(&home, &["--json"]);
+    let json_output = run_wid(&home, &["--json"], None);
     let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
     let id = value["days"][0]["entries"][0]["id"]
         .as_str()
@@ -185,5 +204,55 @@ fn note_by_id_errors_when_item_changed() {
     assert!(
         format!("{error:#}").contains("changed or not found"),
         "{error:#}"
+    );
+}
+
+#[test]
+fn note_reads_single_line_from_stdin_when_no_args_are_given() {
+    let home = unique_temp_dir("note-stdin");
+    let log_path = home.join(".local/share/wid/log.md");
+    fs::create_dir_all(log_path.parent().unwrap()).unwrap();
+    fs::write(&log_path, "## 2026-03-25\n\n- [>] 08:01 active item\n").unwrap();
+
+    let output = run_wid(&home, &["note"], Some("capture stdin note text\n"));
+
+    assert!(output.status.success(), "{output:?}");
+    let contents = fs::read_to_string(&log_path).unwrap();
+    assert!(
+        contents.contains("  - capture stdin note text"),
+        "{contents}"
+    );
+}
+
+#[test]
+fn note_by_id_reads_single_line_from_stdin_when_no_args_are_given() {
+    let home = unique_temp_dir("note-by-id-stdin");
+    let log_path = home.join(".local/share/wid/log.md");
+    fs::create_dir_all(log_path.parent().unwrap()).unwrap();
+    fs::write(
+        &log_path,
+        "## 2026-03-25\n\n- [>] 08:01 active item\n- [ ] 08:12 pending item\n",
+    )
+    .unwrap();
+
+    let json_output = run_wid(&home, &["--json"], None);
+    assert!(json_output.status.success(), "{json_output:?}");
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let output = run_wid(
+        &home,
+        &["note", "--id", &id],
+        Some("stdin note for targeted entry\n"),
+    );
+
+    assert!(output.status.success(), "{output:?}");
+    let contents = fs::read_to_string(&log_path).unwrap();
+    assert!(
+        contents.contains("  - stdin note for targeted entry"),
+        "{contents}"
     );
 }

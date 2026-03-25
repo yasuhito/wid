@@ -139,6 +139,13 @@ wid note --id 8f3c2d1a6b4e "waiting for CI to finish"
 wid rm --id note_4a1d9c2e7f55
 ```
 
+If an agent wants to avoid shell quoting entirely, it can stream text through standard input:
+
+```bash
+echo '--id support for agent workflows' | wid now
+echo '--json shape' | wid note --id 8f3c2d1a6b4e
+```
+
 ## Build and Install
 
 `wid` is a standard Rust CLI project.
