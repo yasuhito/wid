@@ -223,6 +223,78 @@ fn edit_keeps_checkbox_markers_inside_summary_text() {
     );
 }
 
+#[test]
+fn edit_updates_entry_by_transient_id() {
+    let dir = unique_temp_dir("edit-by-entry-id");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [>] 08:12 active item @wid\n  - keep note\n",
+    )
+    .unwrap();
+
+    let document = parser::parse_log(&fs::read_to_string(&path).unwrap()).unwrap();
+    let entry = &document.days[0].entries[0];
+    let id = entry.transient_id("2026-03-25");
+
+    let mut editor = FakeEditor::with_response(Some("renamed active item @wid"));
+    edit_command::run_by_id_at_path(&path, &id, &mut editor).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "## 2026-03-25\n\n- [>] 08:12 renamed active item @wid\n  - keep note\n"
+    );
+    assert_eq!(editor.initial_summary.as_deref(), Some("active item @wid"));
+}
+
+#[test]
+fn edit_updates_note_by_transient_id() {
+    let dir = unique_temp_dir("edit-by-note-id");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [>] 08:12 active item\n  - first note\n  - second note\n",
+    )
+    .unwrap();
+
+    let document = parser::parse_log(&fs::read_to_string(&path).unwrap()).unwrap();
+    let entry = &document.days[0].entries[0];
+    let id = entry.transient_note_id("2026-03-25", "second note");
+
+    let mut editor = FakeEditor::with_response(Some("edited second note"));
+    edit_command::run_by_id_at_path(&path, &id, &mut editor).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "## 2026-03-25\n\n- [>] 08:12 active item\n  - first note\n  - edited second note\n"
+    );
+    assert_eq!(editor.initial_summary.as_deref(), Some("second note"));
+}
+
+#[test]
+fn edit_by_id_errors_when_target_changed() {
+    let dir = unique_temp_dir("edit-by-id-stale");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "## 2026-03-25\n\n- [ ] 08:12 pending item\n").unwrap();
+
+    let document = parser::parse_log(&fs::read_to_string(&path).unwrap()).unwrap();
+    let entry = &document.days[0].entries[0];
+    let id = entry.transient_id("2026-03-25");
+
+    fs::write(&path, "## 2026-03-25\n\n- [ ] 08:12 pending item edited\n").unwrap();
+
+    let mut editor = FakeEditor::with_response(Some("new text"));
+    let error = edit_command::run_by_id_at_path(&path, &id, &mut editor).unwrap_err();
+
+    assert!(
+        format!("{error:#}").contains("item changed or not found"),
+        "{error:#}"
+    );
+}
+
 struct FakePicker {
     result: Option<usize>,
     items: Vec<String>,

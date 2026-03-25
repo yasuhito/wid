@@ -87,6 +87,8 @@ Examples:
 Examples:
   wid edit
     Edit the active item, or the latest item.
+  wid edit --id 8f3c2d1a6b4e rename this task
+    Edit a specific item or note by transient id.
   wid edit -i
     Choose an item or note from the inline picker and edit it."
     )]
@@ -94,9 +96,17 @@ Examples:
         #[arg(
             short = 'i',
             long = "interactive",
-            help = "Choose an item interactively"
+            help = "Choose an item interactively",
+            conflicts_with = "id"
         )]
         interactive: bool,
+        #[arg(long = "id", help = "Edit a specific item or note by transient id")]
+        id: Option<String>,
+        #[arg(
+            help = "The updated text. If omitted, wid prompts for one line of input.",
+            allow_hyphen_values = true
+        )]
+        text: Vec<String>,
     },
     #[command(
         about = "Focus an existing item",
@@ -197,7 +207,11 @@ pub fn run() -> anyhow::Result<()> {
         Some(Commands::Add { text }) => commands::add::run(text),
         Some(Commands::Archive) => commands::archive::run(),
         Some(Commands::Done { interactive, id }) => commands::done::run(interactive, id),
-        Some(Commands::Edit { interactive }) => commands::edit::run(interactive),
+        Some(Commands::Edit {
+            interactive,
+            id,
+            text,
+        }) => commands::edit::run(interactive, id, text),
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
         Some(Commands::Rm { interactive, id }) => commands::rm::run(interactive, id),
         Some(Commands::Now { text }) => commands::now::run(text),
@@ -245,6 +259,20 @@ mod tests {
 
         match cli.command {
             Some(Commands::Note { id, text }) => {
+                assert_eq!(id.as_deref(), Some("entry_123"));
+                assert_eq!(text, vec!["--json", "shape"]);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn edit_accepts_hyphen_prefixed_text_after_target_id() {
+        let cli = Cli::try_parse_from(["wid", "edit", "--id", "entry_123", "--json", "shape"])
+            .expect("edit should allow hyphen-prefixed text after --id");
+
+        match cli.command {
+            Some(Commands::Edit { id, text, .. }) => {
                 assert_eq!(id.as_deref(), Some("entry_123"));
                 assert_eq!(text, vec!["--json", "shape"]);
             }

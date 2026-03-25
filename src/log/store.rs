@@ -440,6 +440,46 @@ pub fn edit_removable_target_text(path: &Path, target: &RemovableTarget, text: &
     Err(anyhow!(message))
 }
 
+pub fn edit_by_transient_id(path: &Path, id: &str, text: &str) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if entry.transient_id(&day.date) == id {
+                let (summary, tags) = split_summary_and_tags(text);
+                entry.summary = summary;
+                entry.tags = tags;
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if let Some(note_index) = entry
+                .notes
+                .iter()
+                .position(|note| entry.transient_note_id(&day.date, note) == id)
+            {
+                if entry
+                    .notes
+                    .iter()
+                    .enumerate()
+                    .any(|(index, existing)| index != note_index && existing == text)
+                {
+                    return Err(anyhow!("duplicate note text for item"));
+                }
+                entry.notes[note_index] = text.to_string();
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("item changed or not found"))
+}
+
 pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
