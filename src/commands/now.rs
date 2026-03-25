@@ -1,10 +1,12 @@
 use std::io::{self, BufRead, IsTerminal, Write};
+use std::fs;
 
 use anyhow::{anyhow, Context, Result};
 use chrono::Local;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 
+use crate::commands::show::print_log_if_changed;
 use crate::log::{paths::default_log_path, store::append_log_entry};
 
 pub fn run(text: Vec<String>) -> Result<()> {
@@ -12,7 +14,9 @@ pub fn run(text: Vec<String>) -> Result<()> {
 
     let (date, time) = current_local_date_time()?;
     let path = default_log_path()?;
-    append_log_entry(&path, &date, &time, &summary)
+    let before = fs::read_to_string(&path).unwrap_or_default();
+    append_log_entry(&path, &date, &time, &summary)?;
+    print_log_if_changed(&path, &before)
 }
 
 pub(crate) fn resolve_summary(text: Vec<String>) -> Result<String> {

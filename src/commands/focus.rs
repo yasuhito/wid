@@ -1,12 +1,16 @@
 use anyhow::{anyhow, Result};
+use std::fs;
 use std::path::Path;
 
+use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
 use crate::log::{paths::default_log_path, store};
 
 pub fn run(interactive: bool) -> Result<()> {
     let path = default_log_path()?;
-    run_at_path(&path, interactive)
+    let before = fs::read_to_string(&path).unwrap_or_default();
+    run_at_path(&path, interactive)?;
+    print_log_if_changed(&path, &before)
 }
 
 pub fn run_at_path(path: &Path, interactive: bool) -> Result<()> {

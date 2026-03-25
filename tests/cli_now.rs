@@ -12,6 +12,21 @@ mod parser;
 mod paths;
 #[path = "../src/log/store.rs"]
 mod store;
+#[path = "../src/commands/show.rs"]
+mod show_command;
+mod log {
+    pub mod model {
+        pub use crate::model::*;
+    }
+    pub mod store {
+        pub use crate::store::*;
+    }
+}
+mod commands {
+    pub mod show {
+        pub use crate::show_command::*;
+    }
+}
 
 use std::fs;
 use std::io::Write;
@@ -64,6 +79,10 @@ fn now_command_joins_remaining_args_with_spaces() {
     let output = run_wid(&home, &["now", "CI", "が", "落ちていたので修正"], None);
 
     assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("## "), "{stdout}");
+    assert!(stdout.contains("- [>] "), "{stdout}");
+    assert!(stdout.contains("CI が 落ちていたので修正"), "{stdout}");
     let contents = log_contents(&home);
     assert!(contents.contains("CI が 落ちていたので修正"), "{contents}");
 }

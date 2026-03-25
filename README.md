@@ -91,6 +91,8 @@ wid
 
 That prints the whole log so you can see your current flow, including notes under each item.
 
+The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
+
 ## Why This Helps
 
 `wid` is built around a simple idea: your attention should have a visible home.

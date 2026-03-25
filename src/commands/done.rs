@@ -1,7 +1,9 @@
 use anyhow::{anyhow, Result};
 use chrono::Local;
+use std::fs;
 use std::path::Path;
 
+use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
 use crate::log::{paths::default_log_path, store};
 
@@ -9,13 +11,16 @@ pub fn run(interactive: bool) -> Result<()> {
     let now = Local::now();
     let timestamp = now.format("%F %R").to_string();
     let path = default_log_path()?;
+    let before = fs::read_to_string(&path).unwrap_or_default();
 
     if interactive {
         let mut picker = TerminalPicker;
-        run_interactive_at_path(&path, &timestamp, &mut picker)
+        run_interactive_at_path(&path, &timestamp, &mut picker)?;
     } else {
-        store::mark_last_unfinished_entry_done(&path, &timestamp)
+        store::mark_last_unfinished_entry_done(&path, &timestamp)?;
     }
+
+    print_log_if_changed(&path, &before)
 }
 
 pub fn run_interactive_at_path(

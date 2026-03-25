@@ -1,10 +1,12 @@
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::Path;
+use std::fs;
 
 use anyhow::{anyhow, Context, Result};
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 
+use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
 use crate::log::{paths::default_log_path, store};
 
@@ -44,9 +46,11 @@ impl SummaryEditor for TerminalSummaryEditor {
 
 pub fn run(interactive: bool) -> Result<()> {
     let path = default_log_path()?;
+    let before = fs::read_to_string(&path).unwrap_or_default();
     let mut picker = TerminalPicker;
     let mut editor = TerminalSummaryEditor;
-    run_at_path(&path, interactive, &mut picker, &mut editor)
+    run_at_path(&path, interactive, &mut picker, &mut editor)?;
+    print_log_if_changed(&path, &before)
 }
 
 pub fn run_at_path(

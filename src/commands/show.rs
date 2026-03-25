@@ -1,11 +1,13 @@
+use std::fs;
 use std::io::{self, IsTerminal, Write};
+use std::path::Path;
 
 use anyhow::Context;
 use crossterm::style::Stylize;
 
 use crate::log::{
     model::{EntryState, LogDocument},
-    store::load_log,
+    store::{load_log, load_log_at_path},
 };
 
 pub fn run() -> anyhow::Result<()> {
@@ -40,6 +42,31 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
     }
 
     output
+}
+
+pub fn print_log_at_path(path: &Path) -> anyhow::Result<()> {
+    let document = load_log_at_path(path)?;
+    let output = render_document(&document, io::stdout().is_terminal());
+
+    io::stdout()
+        .write_all(output.as_bytes())
+        .context("failed to write log output")?;
+
+    Ok(())
+}
+
+pub fn print_log_if_changed(path: &Path, before: &str) -> anyhow::Result<()> {
+    let after = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error).with_context(|| format!("failed to read log at {}", path.display())),
+    };
+
+    if after != before {
+        print_log_at_path(path)?;
+    }
+
+    Ok(())
 }
 
 fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: bool) -> String {

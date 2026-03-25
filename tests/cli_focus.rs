@@ -14,9 +14,16 @@ mod paths;
 mod store;
 #[path = "../src/interactive/done_picker.rs"]
 mod done_picker;
+#[path = "../src/commands/show.rs"]
+mod show_command;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
+    }
+}
+mod commands {
+    pub mod show {
+        pub use crate::show_command::*;
     }
 }
 mod log {
@@ -34,6 +41,7 @@ mod log {
 mod focus_command;
 
 use std::fs;
+use std::process::Command;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -45,6 +53,18 @@ fn unique_temp_dir(name: &str) -> PathBuf {
         .as_nanos();
     dir.push(format!("wid-{name}-{stamp}-{}", std::process::id()));
     dir
+}
+
+fn wid_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_wid")
+}
+
+fn run_wid(home: &PathBuf, args: &[&str]) -> std::process::Output {
+    Command::new(wid_bin())
+        .env("HOME", home)
+        .args(args)
+        .output()
+        .unwrap()
 }
 
 #[test]
@@ -152,7 +172,8 @@ fn focus_interactive_updates_checkbox_not_summary_marker() {
 #[test]
 fn focus_defaults_to_latest_entry_and_clears_previous_active() {
     let dir = unique_temp_dir("focus-default-latest");
-    let path = dir.join("log.md");
+    let home = dir;
+    let path = home.join(".local/share/wid/log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
@@ -160,7 +181,11 @@ fn focus_defaults_to_latest_entry_and_clears_previous_active() {
     )
     .unwrap();
 
-    focus_command::run_at_path(&path, false).unwrap();
+    let output = run_wid(&home, &["focus"]);
+
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("- [>] 11:48 latest task"), "{stdout}");
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),

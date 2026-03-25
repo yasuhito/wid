@@ -10,10 +10,10 @@ use super::paths::default_log_path;
 
 pub fn load_log() -> Result<LogDocument> {
     let path = default_log_path()?;
-    load_log_from_path(&path)
+    load_log_at_path(&path)
 }
 
-fn load_log_from_path(path: &Path) -> Result<LogDocument> {
+pub fn load_log_at_path(path: &Path) -> Result<LogDocument> {
     match fs::read_to_string(path) {
         Ok(contents) => parse_log(&contents),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(LogDocument::default()),
@@ -672,7 +672,7 @@ mod tests {
         let dir = unique_temp_dir("missing");
         let path = dir.join("log.md");
 
-        let loaded = load_log_from_path(&path).unwrap();
+        let loaded = load_log_at_path(&path).unwrap();
 
         assert_eq!(loaded, LogDocument::default());
     }
@@ -682,7 +682,7 @@ mod tests {
         let dir = unique_temp_dir("read-error");
         fs::create_dir_all(&dir).unwrap();
 
-        let error = load_log_from_path(&dir).unwrap_err();
+        let error = load_log_at_path(&dir).unwrap_err();
         let message = format!("{error:#}");
 
         assert!(message.contains("failed to read log at"));

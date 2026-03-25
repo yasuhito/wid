@@ -60,6 +60,10 @@ fn add_command_appends_pending_entry() {
     let output = run_wid(&home, &["add", "あとで", "確認する"], None);
 
     assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("## "), "{stdout}");
+    assert!(stdout.contains("- [ ] "), "{stdout}");
+    assert!(stdout.contains("あとで 確認する"), "{stdout}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(contents.contains("- [ ] "), "{contents}");
     assert!(contents.contains("あとで 確認する"), "{contents}");

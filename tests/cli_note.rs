@@ -16,6 +16,8 @@ mod store;
 mod now_command;
 #[path = "../src/commands/note.rs"]
 mod note_command;
+#[path = "../src/commands/show.rs"]
+mod show_command;
 mod log {
     pub mod model {
         pub use crate::model::*;
@@ -30,6 +32,9 @@ mod log {
 mod commands {
     pub mod now {
         pub use crate::now_command::*;
+    }
+    pub mod show {
+        pub use crate::show_command::*;
     }
 }
 

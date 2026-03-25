@@ -14,9 +14,16 @@ mod paths;
 mod store;
 #[path = "../src/interactive/done_picker.rs"]
 mod done_picker;
+#[path = "../src/commands/show.rs"]
+mod show_command;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
+    }
+}
+mod commands {
+    pub mod show {
+        pub use crate::show_command::*;
     }
 }
 mod log {

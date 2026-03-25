@@ -14,9 +14,16 @@ mod paths;
 mod store;
 #[path = "../src/interactive/done_picker.rs"]
 mod done_picker;
+#[path = "../src/commands/show.rs"]
+mod show_command;
 mod interactive {
     pub mod done_picker {
         pub use crate::done_picker::*;
+    }
+}
+mod commands {
+    pub mod show {
+        pub use crate::show_command::*;
     }
 }
 mod log {
@@ -107,6 +114,8 @@ fn done_command_marks_active_entry_first() {
     let output = run_wid(&home, &["done"], None);
 
     assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("- [x] 12:10 実装方針を見直した"), "{stdout}");
     let contents = fs::read_to_string(log_path(&home)).unwrap();
     assert!(contents.contains("- [ ] 11:32 CI が落ちていたので修正"), "{contents}");
     assert!(contents.contains("- [x] 12:10 実装方針を見直した"), "{contents}");

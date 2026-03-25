@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
+use std::fs;
 use std::path::Path;
 
+use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
 use crate::log::store;
 
@@ -10,8 +12,10 @@ pub fn run(interactive: bool) -> Result<()> {
     }
 
     let path = crate::log::paths::default_log_path()?;
+    let before = fs::read_to_string(&path).unwrap_or_default();
     let mut picker = TerminalPicker;
-    run_terminal_at_path(&path, &mut picker)
+    run_terminal_at_path(&path, &mut picker)?;
+    print_log_if_changed(&path, &before)
 }
 
 pub trait Confirm {
