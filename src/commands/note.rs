@@ -102,8 +102,7 @@ pub fn run_interactive_at_path(
     let default_index = entries
         .iter()
         .position(|entry| entry.state.is_active())
-        .or_else(|| entries.iter().rposition(|entry| !entry.state.is_done()))
-        .unwrap_or(entries.len().saturating_sub(1));
+        .unwrap_or(0);
 
     let Some(index) = picker.pick_with_selected(&entries, default_index)? else {
         return Ok(());

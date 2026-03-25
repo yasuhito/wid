@@ -292,7 +292,7 @@ fn note_command_interactive_errors_when_there_is_no_entry() {
 }
 
 #[test]
-fn note_command_interactive_uses_last_open_item_as_default_when_no_active_exists() {
+fn note_command_interactive_defaults_to_first_item_when_no_active_exists() {
     let dir = unique_temp_dir("note-interactive-default");
     let path = dir.join("log.md");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -306,7 +306,7 @@ fn note_command_interactive_uses_last_open_item_as_default_when_no_active_exists
     let mut editor = FakeSummaryEditor::new("unused");
     note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
 
-    assert_eq!(picker.default_selected, Some(1));
+    assert_eq!(picker.default_selected, Some(0));
 }
 
 #[test]
