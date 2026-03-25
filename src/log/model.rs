@@ -26,6 +26,14 @@ impl EntryState {
     pub fn is_done(self) -> bool {
         matches!(self, Self::Done)
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Active => "active",
+            Self::Done => "done",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -34,6 +42,24 @@ pub struct Entry {
     pub summary: String,
     pub state: EntryState,
     pub notes: Vec<String>,
+}
+
+impl Entry {
+    pub fn transient_id(&self, date: &str) -> String {
+        let digest = md5::compute(format!(
+            "{date}\n{}\n{}\n{}",
+            self.time,
+            self.state.as_str(),
+            self.summary
+        ));
+        format!("{digest:x}").chars().take(12).collect()
+    }
+
+    pub fn transient_note_id(&self, date: &str, index: usize, note: &str) -> String {
+        let entry_id = self.transient_id(date);
+        let digest = md5::compute(format!("{entry_id}\n{index}\n{note}"));
+        format!("note_{digest:x}").chars().take(17).collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

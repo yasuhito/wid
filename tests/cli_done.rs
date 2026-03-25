@@ -119,6 +119,69 @@ fn done_command_marks_last_unfinished_entry() {
 }
 
 #[test]
+fn done_command_marks_entry_by_transient_id() {
+    let home = unique_temp_dir("done-by-id");
+    write_log(
+        &home,
+        "## 2026-03-24\n\n- [ ] 11:32 first item\n- [ ] 11:48 target item\n",
+    );
+
+    let json_output = run_wid(&home, &["--json"], None);
+    assert!(json_output.status.success(), "{json_output:?}");
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let output = run_wid(&home, &["done", "--id", &id], None);
+
+    assert!(output.status.success(), "{output:?}");
+    let contents = fs::read_to_string(log_path(&home)).unwrap();
+    assert!(contents.contains("- [x] 11:48 target item"), "{contents}");
+}
+
+#[test]
+fn done_command_by_id_is_noop_when_target_is_already_done() {
+    let home = unique_temp_dir("done-by-id-noop");
+    write_log(&home, "## 2026-03-24\n\n- [x] 11:32 already done\n");
+
+    let json_output = run_wid(&home, &["--json"], None);
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let before = fs::read_to_string(log_path(&home)).unwrap();
+    let output = run_wid(&home, &["done", "--id", &id], None);
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(fs::read_to_string(log_path(&home)).unwrap(), before);
+}
+
+#[test]
+fn done_command_by_id_errors_when_item_changed() {
+    let home = unique_temp_dir("done-by-id-stale");
+    write_log(&home, "## 2026-03-24\n\n- [ ] 11:32 target item\n");
+
+    let json_output = run_wid(&home, &["--json"], None);
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    write_log(&home, "## 2026-03-24\n\n- [ ] 11:32 target item (edited)\n");
+
+    let output = run_wid(&home, &["done", "--id", &id], None);
+
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("changed or not found"), "{stderr}");
+}
+
+#[test]
 fn done_command_marks_active_entry_first() {
     let home = unique_temp_dir("done-mark-active-first");
     write_log(

@@ -95,6 +95,62 @@ fn wid_omits_empty_day_sections_from_output() {
 }
 
 #[test]
+fn wid_json_outputs_days_entries_and_transient_ids() {
+    let home = unique_temp_dir("show-json");
+    let log_path = home.join(".local/share/wid/log.md");
+    fs::create_dir_all(log_path.parent().unwrap()).unwrap();
+    fs::write(
+        &log_path,
+        "## 2026-03-24\n\n- [>] 11:32 active item\n  - first note\n- [x] 12:10 done item\n",
+    )
+    .unwrap();
+
+    let output = run_wid(&home, &["--json"]);
+
+    assert!(output.status.success(), "{output:?}");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let days = value["days"].as_array().unwrap();
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0]["date"], "2026-03-24");
+    let entries = days[0]["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["state"], "active");
+    assert_eq!(entries[0]["time"], "11:32");
+    assert_eq!(entries[0]["summary"], "active item");
+    assert_eq!(entries[0]["notes"][0]["text"], "first note");
+    assert!(
+        entries[0]["notes"][0]["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("note_")
+    );
+    assert!(entries[0]["id"].as_str().unwrap().len() >= 12);
+    assert_eq!(entries[1]["state"], "done");
+}
+
+#[test]
+fn render_json_document_keeps_transient_id_when_notes_change() {
+    let before =
+        parser::parse_log("## 2026-03-24\n\n- [ ] 11:32 same summary\n  - first note\n").unwrap();
+    let after =
+        parser::parse_log("## 2026-03-24\n\n- [ ] 11:32 same summary\n  - second note\n").unwrap();
+
+    let before_json: serde_json::Value =
+        serde_json::from_str(&show_command::render_document_json(&before)).unwrap();
+    let after_json: serde_json::Value =
+        serde_json::from_str(&show_command::render_document_json(&after)).unwrap();
+
+    assert_eq!(
+        before_json["days"][0]["entries"][0]["id"],
+        after_json["days"][0]["entries"][0]["id"]
+    );
+    assert_ne!(
+        before_json["days"][0]["entries"][0]["notes"][0]["id"],
+        after_json["days"][0]["entries"][0]["notes"][0]["id"]
+    );
+}
+
+#[test]
 fn render_document_with_color_highlights_active_and_done_entries() {
     let document = parser::parse_log(
         "## 2026-03-24\n\n- [>] 11:32 active\n  - first note\n- [x] 12:10 done\n  - done note\n- [ ] 12:30 pending\n",

@@ -215,6 +215,76 @@ fn rm_store_errors_when_log_has_no_entries() {
     assert!(format!("{error:#}").contains("no entries"), "{error:#}");
 }
 
+#[test]
+fn rm_command_by_id_deletes_entry() {
+    let home = unique_temp_dir("rm-by-id-entry");
+    write_log(
+        &home,
+        "## 2026-03-25\n\n- [ ] 08:01 first item\n- [ ] 08:12 target item\n",
+    );
+
+    let json_output = run_wid(&home, &["--json"], None);
+    assert!(json_output.status.success(), "{json_output:?}");
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let output = run_wid(&home, &["rm", "--id", &id], None);
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        fs::read_to_string(log_path(&home)).unwrap(),
+        "## 2026-03-25\n\n- [ ] 08:01 first item\n"
+    );
+}
+
+#[test]
+fn rm_command_by_id_deletes_note() {
+    let home = unique_temp_dir("rm-by-id-note");
+    write_log(
+        &home,
+        "## 2026-03-25\n\n- [ ] 08:12 target item\n  - first note\n  - second note\n",
+    );
+
+    let json_output = run_wid(&home, &["--json"], None);
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][0]["notes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let output = run_wid(&home, &["rm", "--id", &id], None);
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        fs::read_to_string(log_path(&home)).unwrap(),
+        "## 2026-03-25\n\n- [ ] 08:12 target item\n  - second note\n"
+    );
+}
+
+#[test]
+fn rm_command_by_id_errors_when_item_changed() {
+    let home = unique_temp_dir("rm-by-id-stale");
+    write_log(&home, "## 2026-03-25\n\n- [ ] 08:12 target item\n");
+
+    let json_output = run_wid(&home, &["--json"], None);
+    let value: serde_json::Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    let id = value["days"][0]["entries"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    write_log(&home, "## 2026-03-25\n\n- [ ] 08:12 target item (edited)\n");
+
+    let output = run_wid(&home, &["rm", "--id", &id], None);
+
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("changed or not found"), "{stderr}");
+}
+
 struct FakePicker {
     result: Option<usize>,
 }

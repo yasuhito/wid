@@ -157,6 +157,24 @@ pub fn mark_focus_entry_done(path: &Path, target: &FocusEntry, _timestamp: &str)
     mark_entry_done_with_contents(path, &contents, fresh_target.start, fresh_target.end)
 }
 
+pub fn mark_entry_done_by_transient_id(path: &Path, id: &str) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if entry.transient_id(&day.date) == id {
+                if entry.state.is_done() {
+                    return Ok(());
+                }
+                entry.state = EntryState::Done;
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("item changed or not found"))
+}
+
 pub fn apply_entry_state_updates(path: &Path, updates: &[(LogEntry, EntryState)]) -> Result<()> {
     if updates.is_empty() {
         return Ok(());
@@ -219,6 +237,37 @@ pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
         .ok_or_else(|| anyhow!("selected entry changed before it could be removed"))?;
 
     delete_entry_with_contents(path, &contents, &fresh_target)
+}
+
+pub fn delete_by_transient_id(path: &Path, id: &str) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        if let Some(entry_index) = day
+            .entries
+            .iter()
+            .position(|entry| entry.transient_id(&day.date) == id)
+        {
+            day.entries.remove(entry_index);
+            document.days.retain(|day| !day.entries.is_empty());
+            save_log_to_path(path, &document)?;
+            return Ok(());
+        }
+    }
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if let Some(note_index) = entry.notes.iter().enumerate().find_map(|(index, note)| {
+                (entry.transient_note_id(&day.date, index, note) == id).then_some(index)
+            }) {
+                entry.notes.remove(note_index);
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("item changed or not found"))
 }
 
 pub fn edit_entry_summary(path: &Path, target: &LogEntry, summary: &str) -> Result<()> {
@@ -323,6 +372,22 @@ pub fn append_note_to_latest_open_entry(path: &Path, note: &str) -> Result<()> {
     fs::write(path, updated)
         .with_context(|| format!("failed to write log at {}", path.display()))?;
     Ok(())
+}
+
+pub fn append_note_by_transient_id(path: &Path, id: &str, note: &str) -> Result<()> {
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        for entry in &mut day.entries {
+            if entry.transient_id(&day.date) == id {
+                entry.notes.push(note.to_string());
+                save_log_to_path(path, &document)?;
+                return Ok(());
+            }
+        }
+    }
+
+    Err(anyhow!("item changed or not found"))
 }
 
 pub fn archive_done_entries_at_paths(log_path: &Path, archive_path: &Path) -> Result<()> {

@@ -6,15 +6,19 @@ use crate::commands::show::print_log_if_changed;
 use crate::interactive::done_picker::{Picker, TerminalPicker};
 use crate::log::store;
 
-pub fn run(interactive: bool) -> Result<()> {
-    if !interactive {
+pub fn run(interactive: bool, id: Option<String>) -> Result<()> {
+    if !interactive && id.is_none() {
         return Err(anyhow!("rm requires -i"));
     }
 
     let path = crate::log::paths::default_log_path()?;
     let before = fs::read_to_string(&path).unwrap_or_default();
-    let mut picker = TerminalPicker;
-    run_terminal_at_path(&path, &mut picker)?;
+    if let Some(id) = id {
+        store::delete_by_transient_id(&path, &id)?;
+    } else {
+        let mut picker = TerminalPicker;
+        run_terminal_at_path(&path, &mut picker)?;
+    }
     print_log_if_changed(&path, &before)
 }
 

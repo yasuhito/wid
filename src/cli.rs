@@ -8,6 +8,9 @@ use crate::commands;
     about = "Track what you're doing in a global markdown log"
 )]
 pub struct Cli {
+    #[arg(long = "json", help = "Print the log as JSON")]
+    pub json: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -26,9 +29,12 @@ pub enum Commands {
         #[arg(
             short = 'i',
             long = "interactive",
-            help = "Choose an item interactively"
+            help = "Choose an item interactively",
+            conflicts_with = "id"
         )]
         interactive: bool,
+        #[arg(long = "id", help = "Mark a specific item as done by transient id")]
+        id: Option<String>,
     },
     #[command(about = "Edit an existing item summary")]
     Edit {
@@ -53,9 +59,12 @@ pub enum Commands {
         #[arg(
             short = 'i',
             long = "interactive",
-            help = "Choose an item interactively"
+            help = "Choose an item interactively",
+            conflicts_with = "id"
         )]
         interactive: bool,
+        #[arg(long = "id", help = "Remove a specific item or note by transient id")]
+        id: Option<String>,
     },
     #[command(about = "Add a new active item and focus it immediately")]
     Now {
@@ -66,6 +75,8 @@ pub enum Commands {
     Note {
         #[arg(help = "The note text to add. If omitted, wid prompts for one line of input.")]
         text: Vec<String>,
+        #[arg(long = "id", help = "Add a note to a specific item by transient id")]
+        id: Option<String>,
     },
     #[command(about = "Open the log file in $EDITOR")]
     Open {
@@ -80,13 +91,13 @@ pub fn run() -> anyhow::Result<()> {
     match cli.command {
         Some(Commands::Add { text }) => commands::add::run(text),
         Some(Commands::Archive) => commands::archive::run(),
-        Some(Commands::Done { interactive }) => commands::done::run(interactive),
+        Some(Commands::Done { interactive, id }) => commands::done::run(interactive, id),
         Some(Commands::Edit { interactive }) => commands::edit::run(interactive),
         Some(Commands::Focus { interactive }) => commands::focus::run(interactive),
-        Some(Commands::Rm { interactive }) => commands::rm::run(interactive),
+        Some(Commands::Rm { interactive, id }) => commands::rm::run(interactive, id),
         Some(Commands::Now { text }) => commands::now::run(text),
-        Some(Commands::Note { text }) => commands::note::run(text),
+        Some(Commands::Note { text, id }) => commands::note::run(text, id),
         Some(Commands::Open { archive }) => commands::open::run(archive),
-        None => commands::show::run(),
+        None => commands::show::run(cli.json),
     }
 }

@@ -4,15 +4,20 @@ use std::path::Path;
 
 use anyhow::Context;
 use crossterm::style::Stylize;
+use serde_json::json;
 
 use crate::log::{
     model::{EntryState, LogDocument},
     store::{load_log, load_log_at_path},
 };
 
-pub fn run() -> anyhow::Result<()> {
+pub fn run(json_output: bool) -> anyhow::Result<()> {
     let document = load_log()?;
-    let output = render_document(&document, io::stdout().is_terminal());
+    let output = if json_output {
+        render_document_json(&document)
+    } else {
+        render_document(&document, io::stdout().is_terminal())
+    };
 
     io::stdout()
         .write_all(output.as_bytes())
@@ -51,6 +56,35 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
     }
 
     output
+}
+
+pub fn render_document_json(document: &LogDocument) -> String {
+    let days: Vec<_> = document
+        .days
+        .iter()
+        .filter(|day| !day.entries.is_empty())
+        .map(|day| {
+            json!({
+                "date": day.date,
+                "entries": day.entries.iter().map(|entry| {
+                    json!({
+                        "id": entry.transient_id(&day.date),
+                        "state": entry.state.as_str(),
+                        "time": entry.time,
+                        "summary": entry.summary,
+                        "notes": entry.notes.iter().enumerate().map(|(index, note)| {
+                            json!({
+                                "id": entry.transient_note_id(&day.date, index, note),
+                                "text": note,
+                            })
+                        }).collect::<Vec<_>>(),
+                    })
+                }).collect::<Vec<_>>()
+            })
+        })
+        .collect();
+
+    serde_json::to_string_pretty(&json!({ "days": days })).expect("json output should serialize")
 }
 
 pub fn print_log_at_path(path: &Path) -> anyhow::Result<()> {

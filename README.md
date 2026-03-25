@@ -110,6 +110,27 @@ That prints the whole log so you can see your current flow, including notes unde
 
 The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
 
+If an agent needs to inspect the log programmatically, it can use:
+
+```bash
+wid --json
+```
+
+That prints the same log as structured JSON, with a transient per-entry `id` that agents can use immediately in follow-up commands. The `id` is derived from the current entry contents and is not stored in the Markdown file.
+
+For example, an agent can read the current list with `wid --json`, choose an item by its transient `id`, and then close it with:
+
+```bash
+wid done --id 8f3c2d1a6b4e
+```
+
+Agents can also add notes and remove either whole items or individual notes by transient id:
+
+```bash
+wid note --id 8f3c2d1a6b4e "waiting for CI to finish"
+wid rm --id note_4a1d9c2e7f55
+```
+
 ## Build and Install
 
 `wid` is a standard Rust CLI project.
@@ -169,28 +190,35 @@ wid focus
 wid focus -i
 wid note TEXT...
 wid note
+wid note --id ID TEXT...
 wid edit
 wid edit -i
 wid open
 wid open --archive
 wid done
+wid done --id ID
 wid done -i
 wid archive
+wid rm --id ID
 wid rm -i
 ```
 
 - `wid` prints the log
+- `wid --json` prints the log as structured JSON for agents or scripts
 - `wid add` adds a pending item without changing focus
 - `wid now` adds a new active item and focuses it immediately
 - `wid focus` focuses the latest item
 - `wid focus -i` lets you choose an item to focus
 - `wid note` appends a note under the active item, or the latest open item
+- `wid note --id` appends a note to a specific item by transient id from `wid --json`
 - `wid edit` edits the active item, or the latest item
 - `wid open` opens `log.md` in `$EDITOR`
 - `wid open --archive` opens `archive.md` in `$EDITOR`
 - `wid done` closes the active item, or the latest pending item
+- `wid done --id` closes a specific item by transient id from `wid --json`
 - `wid done -i` toggles done state for multiple items before confirmation
 - `wid archive` moves all done items into `archive.md`
+- `wid rm --id` removes a specific item or note by transient id from `wid --json`
 - `wid rm -i` removes an item after confirmation
 
 ## Storage
