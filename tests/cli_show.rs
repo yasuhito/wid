@@ -117,6 +117,7 @@ fn wid_json_outputs_days_entries_and_transient_ids() {
     assert_eq!(entries[0]["state"], "active");
     assert_eq!(entries[0]["time"], "11:32");
     assert_eq!(entries[0]["summary"], "active item");
+    assert_eq!(entries[0]["tags"], serde_json::json!([]));
     assert_eq!(entries[0]["notes"][0]["text"], "first note");
     assert!(
         entries[0]["notes"][0]["id"]
@@ -126,6 +127,26 @@ fn wid_json_outputs_days_entries_and_transient_ids() {
     );
     assert!(entries[0]["id"].as_str().unwrap().len() >= 12);
     assert_eq!(entries[1]["state"], "done");
+}
+
+#[test]
+fn wid_json_splits_summary_and_tags() {
+    let home = unique_temp_dir("show-json-tags");
+    let log_path = home.join(".local/share/wid/log.md");
+    fs::create_dir_all(log_path.parent().unwrap()).unwrap();
+    fs::write(
+        &log_path,
+        "## 2026-03-24\n\n- [>] 11:32 active item @wid @agent\n",
+    )
+    .unwrap();
+
+    let output = run_wid(&home, &["--json"]);
+
+    assert!(output.status.success(), "{output:?}");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let entry = &value["days"][0]["entries"][0];
+    assert_eq!(entry["summary"], "active item");
+    assert_eq!(entry["tags"], serde_json::json!(["wid", "agent"]));
 }
 
 #[test]
@@ -146,6 +167,26 @@ fn render_json_document_keeps_transient_id_when_notes_change() {
     );
     assert_ne!(
         before_json["days"][0]["entries"][0]["notes"][0]["id"],
+        after_json["days"][0]["entries"][0]["notes"][0]["id"]
+    );
+}
+
+#[test]
+fn render_json_document_keeps_remaining_note_id_when_earlier_note_is_removed() {
+    let before = parser::parse_log(
+        "## 2026-03-24\n\n- [ ] 11:32 same summary\n  - first note\n  - second note\n",
+    )
+    .unwrap();
+    let after =
+        parser::parse_log("## 2026-03-24\n\n- [ ] 11:32 same summary\n  - second note\n").unwrap();
+
+    let before_json: serde_json::Value =
+        serde_json::from_str(&show_command::render_document_json(&before)).unwrap();
+    let after_json: serde_json::Value =
+        serde_json::from_str(&show_command::render_document_json(&after)).unwrap();
+
+    assert_eq!(
+        before_json["days"][0]["entries"][0]["notes"][1]["id"],
         after_json["days"][0]["entries"][0]["notes"][0]["id"]
     );
 }

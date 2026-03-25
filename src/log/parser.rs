@@ -72,9 +72,12 @@ pub(crate) fn parse_entry_line(line: &str) -> Option<Entry> {
         return None;
     }
 
+    let (summary, tags) = split_summary_and_tags(summary);
+
     Some(Entry {
         time: time.to_string(),
-        summary: summary.to_string(),
+        summary,
+        tags,
         state,
         notes: Vec::new(),
     })
@@ -104,4 +107,40 @@ fn is_time_like(value: &str) -> bool {
         && bytes[0..2].iter().all(u8::is_ascii_digit)
         && bytes[2] == b':'
         && bytes[3..5].iter().all(u8::is_ascii_digit)
+}
+
+pub(crate) fn split_summary_and_tags(input: &str) -> (String, Vec<String>) {
+    let parts: Vec<&str> = input.split(' ').collect();
+    let mut tag_start = parts.len();
+
+    while tag_start > 0 {
+        let candidate = parts[tag_start - 1];
+        if is_tag_token(candidate) {
+            tag_start -= 1;
+        } else {
+            break;
+        }
+    }
+
+    if tag_start == parts.len() {
+        return (input.to_string(), Vec::new());
+    }
+
+    let summary = parts[..tag_start].join(" ").trim_end().to_string();
+    let tags = parts[tag_start..]
+        .iter()
+        .map(|part| part.trim_start_matches('@').to_string())
+        .collect();
+
+    (summary, tags)
+}
+
+fn is_tag_token(token: &str) -> bool {
+    if !token.starts_with('@') || token.len() <= 1 {
+        return false;
+    }
+
+    token[1..]
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
 }

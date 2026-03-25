@@ -15,8 +15,8 @@ Imagine you are juggling several projects while agents are running in the backgr
 You think of a few things you need to do later, but you are not starting them yet:
 
 ```bash
-wid add tighten README wording
-wid add investigate failing CI on md-edit
+wid add tighten README wording @wid
+wid add investigate failing CI on md-edit @md-edit
 wid add review open PR comments
 ```
 
@@ -29,7 +29,7 @@ Those become pending items:
 Then you decide what you are actually starting now:
 
 ```bash
-wid now investigate failing CI on md-edit
+wid now investigate failing CI on md-edit @md-edit @ci
 ```
 
 That item becomes the one active thing:
@@ -192,6 +192,15 @@ That is why the model is small:
 ```
 
 The log stays readable as plain Markdown, but the CLI gives you enough structure to keep your focus from dissolving when projects and agents pile up.
+
+You can also use trailing `@tags` to keep track of which project or workstream an item belongs to:
+
+```bash
+wid add improve JSON examples @wid @docs
+wid now fix flaky CI on md-edit @md-edit @ci
+```
+
+`wid` treats those as tags in JSON output, so agents can use `@wid` or `@md-edit` as lightweight project markers without needing extra CLI flags.
 
 ## Quick Reference
 

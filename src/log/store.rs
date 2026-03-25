@@ -8,7 +8,9 @@ use super::model::{
     DaySection, Entry, EntryState, FocusEntry, LogDocument, LogEntry, RemovableKind,
     RemovableTarget, UnfinishedEntry,
 };
-use super::parser::{parse_day_heading, parse_entry_line, parse_log, parse_note_line};
+use super::parser::{
+    parse_day_heading, parse_entry_line, parse_log, parse_note_line, split_summary_and_tags,
+};
 use super::paths::{default_archive_path, default_log_path};
 
 pub fn load_log() -> Result<LogDocument> {
@@ -86,9 +88,11 @@ pub fn collect_focus_entries(path: &Path) -> Result<Vec<FocusEntry>> {
 }
 
 pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> Result<()> {
+    let (summary, tags) = split_summary_and_tags(summary);
     let entry = Entry {
         time: time.to_string(),
-        summary: summary.to_string(),
+        summary,
+        tags,
         state: EntryState::Active,
         notes: Vec::new(),
     };
@@ -96,9 +100,11 @@ pub fn append_log_entry(path: &Path, date: &str, time: &str, summary: &str) -> R
 }
 
 pub fn append_pending_entry(path: &Path, date: &str, time: &str, summary: &str) -> Result<()> {
+    let (summary, tags) = split_summary_and_tags(summary);
     let entry = Entry {
         time: time.to_string(),
-        summary: summary.to_string(),
+        summary,
+        tags,
         state: EntryState::Pending,
         notes: Vec::new(),
     };
@@ -144,6 +150,7 @@ pub fn mark_unfinished_entry_done(
                 && entry.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
         })
         .ok_or_else(|| anyhow!("selected entry changed before it could be completed"))?;
 
@@ -164,6 +171,7 @@ pub fn mark_focus_entry_done(path: &Path, target: &FocusEntry, _timestamp: &str)
                 && entry.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
         })
         .ok_or_else(|| anyhow!("selected entry changed before it could be completed"))?;
 
@@ -210,6 +218,7 @@ pub fn apply_entry_state_updates(path: &Path, updates: &[(LogEntry, EntryState)]
                     && entry.date == target.date
                     && entry.time == target.time
                     && entry.summary == target.summary
+                    && entry.tags == target.tags
                     && entry.state == target.state
             })
             .ok_or_else(|| anyhow!("selected entry changed before it could be updated"))?;
@@ -249,6 +258,7 @@ pub fn delete_entry(path: &Path, target: &LogEntry) -> Result<()> {
                 && day.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
                 && entry.state == target.state
             {
                 day.entries.remove(index);
@@ -282,9 +292,11 @@ pub fn delete_by_transient_id(path: &Path, id: &str) -> Result<()> {
 
     for day in &mut document.days {
         for entry in &mut day.entries {
-            if let Some(note_index) = entry.notes.iter().enumerate().find_map(|(index, note)| {
-                (entry.transient_note_id(&day.date, index, note) == id).then_some(index)
-            }) {
+            if let Some(note_index) = entry
+                .notes
+                .iter()
+                .position(|note| entry.transient_note_id(&day.date, note) == id)
+            {
                 entry.notes.remove(note_index);
                 save_log_to_path(path, &document)?;
                 return Ok(());
@@ -307,6 +319,7 @@ pub fn delete_removable_target(path: &Path, target: &RemovableTarget) -> Result<
                 && day.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
                 && entry.state == target.state;
 
             match target.kind {
@@ -359,6 +372,7 @@ pub fn edit_entry_summary(path: &Path, target: &LogEntry, summary: &str) -> Resu
                 && entry.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
                 && entry.state == target.state
         })
         .ok_or_else(|| anyhow!("selected entry changed before it could be edited"))?;
@@ -378,11 +392,14 @@ pub fn edit_removable_target_text(path: &Path, target: &RemovableTarget, text: &
                 && day.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
                 && entry.state == target.state;
 
             match target.kind {
                 RemovableKind::Entry if entry_matches => {
-                    entry.summary = text.to_string();
+                    let (summary, tags) = split_summary_and_tags(text);
+                    entry.summary = summary;
+                    entry.tags = tags;
                     save_log_to_path(path, &document)?;
                     return Ok(());
                 }
@@ -394,6 +411,14 @@ pub fn edit_removable_target_text(path: &Path, target: &RemovableTarget, text: &
                         break;
                     };
                     if note_ordinal < entry.notes.len() && entry.notes[note_ordinal] == note_text {
+                        if entry
+                            .notes
+                            .iter()
+                            .enumerate()
+                            .any(|(index, existing)| index != note_ordinal && existing == text)
+                        {
+                            return Err(anyhow!("duplicate note text for item"));
+                        }
                         entry.notes[note_ordinal] = text.to_string();
                         save_log_to_path(path, &document)?;
                         return Ok(());
@@ -429,6 +454,7 @@ pub fn focus_entry(path: &Path, target: &FocusEntry) -> Result<()> {
                 && entry.date == target.date
                 && entry.time == target.time
                 && entry.summary == target.summary
+                && entry.tags == target.tags
         })
         .ok_or_else(|| anyhow!("selected entry changed before it could be focused"))?;
 
@@ -475,27 +501,30 @@ pub fn focus_latest_entry(path: &Path) -> Result<()> {
 }
 
 pub fn append_note_to_latest_open_entry(path: &Path, note: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create log directory at {}", parent.display()))?;
+    let mut document = load_log_at_path(path)?;
+
+    for day in &mut document.days {
+        if let Some(entry) = day.entries.iter_mut().find(|entry| entry.state.is_active()) {
+            append_note_to_entry(entry, note)?;
+            save_log_to_path(path, &document)?;
+            return Ok(());
+        }
     }
 
-    let contents = read_log_contents(path)?;
-    let Some(target) = collect_note_targets_from_contents(&contents) else {
-        return Err(anyhow!("no note target found"));
-    };
+    for day in document.days.iter_mut().rev() {
+        if let Some(entry) = day
+            .entries
+            .iter_mut()
+            .rev()
+            .find(|entry| entry.state.is_pending())
+        {
+            append_note_to_entry(entry, note)?;
+            save_log_to_path(path, &document)?;
+            return Ok(());
+        }
+    }
 
-    let line_ending = newline_ending(&contents);
-    let mut updated = String::with_capacity(contents.len() + note.len() + 8);
-    updated.push_str(&contents[..target.insert_at]);
-    updated.push_str("  - ");
-    updated.push_str(note);
-    updated.push_str(line_ending);
-    updated.push_str(&contents[target.insert_at..]);
-
-    fs::write(path, updated)
-        .with_context(|| format!("failed to write log at {}", path.display()))?;
-    Ok(())
+    Err(anyhow!("no note target found"))
 }
 
 pub fn append_note_by_transient_id(path: &Path, id: &str, note: &str) -> Result<()> {
@@ -504,7 +533,7 @@ pub fn append_note_by_transient_id(path: &Path, id: &str, note: &str) -> Result<
     for day in &mut document.days {
         for entry in &mut day.entries {
             if entry.transient_id(&day.date) == id {
-                entry.notes.push(note.to_string());
+                append_note_to_entry(entry, note)?;
                 save_log_to_path(path, &document)?;
                 return Ok(());
             }
@@ -629,6 +658,7 @@ fn collect_unfinished_entries_from_contents(contents: &str) -> Vec<UnfinishedEnt
                 date: date.clone(),
                 time: entry.time,
                 summary: entry.summary,
+                tags: entry.tags,
                 ordinal: entries.len(),
                 start: line_start,
                 end: line_end,
@@ -661,6 +691,7 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
                 date: date.clone(),
                 time: entry.time,
                 summary: entry.summary,
+                tags: entry.tags,
                 state: entry.state,
                 ordinal: entries.len(),
                 start: line_start,
@@ -677,7 +708,7 @@ fn collect_entries_from_contents(contents: &str) -> Vec<LogEntry> {
 fn collect_removable_targets_from_contents(contents: &str) -> Vec<RemovableTarget> {
     let mut targets = Vec::new();
     let mut current_date: Option<String> = None;
-    let mut current_entry: Option<(String, String, EntryState, usize)> = None;
+    let mut current_entry: Option<(String, String, Vec<String>, EntryState, usize)> = None;
     let mut entry_ordinal = 0usize;
     let mut note_ordinal = 0usize;
 
@@ -697,6 +728,7 @@ fn collect_removable_targets_from_contents(contents: &str) -> Vec<RemovableTarge
                     date: date.clone(),
                     time: entry.time.clone(),
                     summary: entry.summary.clone(),
+                    tags: entry.tags.clone(),
                     state: entry.state,
                     entry_ordinal,
                     note_ordinal: None,
@@ -705,19 +737,22 @@ fn collect_removable_targets_from_contents(contents: &str) -> Vec<RemovableTarge
                 current_entry = Some((
                     entry.time.clone(),
                     entry.summary.clone(),
+                    entry.tags.clone(),
                     entry.state,
                     entry_ordinal,
                 ));
                 entry_ordinal += 1;
                 note_ordinal = 0;
             } else if let Some(note) = parse_note_line(line) {
-                if let Some((time, summary, state, current_entry_ordinal)) = current_entry.as_ref()
+                if let Some((time, summary, tags, state, current_entry_ordinal)) =
+                    current_entry.as_ref()
                 {
                     targets.push(RemovableTarget {
                         kind: RemovableKind::Note,
                         date: date.clone(),
                         time: time.clone(),
                         summary: summary.clone(),
+                        tags: tags.clone(),
                         state: *state,
                         entry_ordinal: *current_entry_ordinal,
                         note_ordinal: Some(note_ordinal),
@@ -756,6 +791,7 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
                 date: date.clone(),
                 time: entry.time,
                 summary: entry.summary,
+                tags: entry.tags,
                 state: entry.state,
                 ordinal: entries.len(),
                 start: line_start,
@@ -769,59 +805,13 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
     entries
 }
 
-#[derive(Debug, Clone, Copy)]
-struct NoteTarget {
-    state: EntryState,
-    insert_at: usize,
-}
-
-fn collect_note_targets_from_contents(contents: &str) -> Option<NoteTarget> {
-    let mut line_start = 0;
-    let mut current_date: Option<String> = None;
-    let mut current_target: Option<NoteTarget> = None;
-    let mut active_target: Option<NoteTarget> = None;
-    let mut last_pending_target: Option<NoteTarget> = None;
-
-    for segment in contents.split_inclusive('\n') {
-        let line_end = line_start + segment.len();
-        let line = segment.trim_end();
-
-        if let Some(date) = parse_day_heading(line) {
-            current_date = Some(date.to_string());
-            current_target = None;
-        } else if line.starts_with("## ") {
-            current_date = None;
-            current_target = None;
-        } else if current_date.is_some() {
-            if let Some(entry) = parse_entry_line(line) {
-                let target = NoteTarget {
-                    state: entry.state,
-                    insert_at: line_end,
-                };
-                current_target = Some(target);
-                if entry.state.is_active() {
-                    active_target = Some(target);
-                } else if entry.state.is_pending() {
-                    last_pending_target = Some(target);
-                }
-            } else if parse_note_line(line).is_some() {
-                if let Some(target) = current_target.as_mut() {
-                    target.insert_at = line_end;
-                    if target.state.is_active() {
-                        active_target = Some(*target);
-                    } else if target.state.is_pending() {
-                        last_pending_target = Some(*target);
-                    }
-                }
-            } else {
-                current_target = None;
-            }
-        }
-
-        line_start = line_end;
+fn append_note_to_entry(entry: &mut Entry, note: &str) -> Result<()> {
+    if entry.notes.iter().any(|existing| existing == note) {
+        return Err(anyhow!("duplicate note text for item"));
     }
 
-    active_target.or(last_pending_target)
+    entry.notes.push(note.to_string());
+    Ok(())
 }
 
 fn mark_entry_done_with_contents(
@@ -867,9 +857,11 @@ fn edit_entry_summary_with_contents(
     let body = segment.trim_end_matches(['\r', '\n']);
     let ending = &segment[body.len()..];
     let entry = parse_entry_line(body).ok_or_else(|| anyhow!("failed to parse target entry"))?;
+    let (summary, tags) = split_summary_and_tags(summary);
     let updated_body = format_entry(&Entry {
         time: entry.time,
-        summary: summary.to_string(),
+        summary,
+        tags,
         state: entry.state,
         notes: Vec::new(),
     });

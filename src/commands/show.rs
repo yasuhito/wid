@@ -7,7 +7,7 @@ use crossterm::style::Stylize;
 use serde_json::json;
 
 use crate::log::{
-    model::{EntryState, LogDocument},
+    model::{EntryState, LogDocument, format_summary_with_tags},
     store::{load_log, load_log_at_path},
 };
 
@@ -41,10 +41,11 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
 
         output.push_str(&format!("## {}\n\n", day.date));
         for entry in &day.entries {
+            let summary = render_entry_summary(&entry.summary, &entry.tags);
             output.push_str(&render_entry_line(
                 entry.state,
                 &entry.time,
-                &entry.summary,
+                &summary,
                 colorize,
             ));
             output.push('\n');
@@ -72,9 +73,10 @@ pub fn render_document_json(document: &LogDocument) -> String {
                         "state": entry.state.as_str(),
                         "time": entry.time,
                         "summary": entry.summary,
-                        "notes": entry.notes.iter().enumerate().map(|(index, note)| {
+                        "tags": entry.tags,
+                        "notes": entry.notes.iter().map(|note| {
                             json!({
-                                "id": entry.transient_note_id(&day.date, index, note),
+                                "id": entry.transient_note_id(&day.date, note),
                                 "text": note,
                             })
                         }).collect::<Vec<_>>(),
@@ -125,6 +127,10 @@ fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: boo
         EntryState::Active => format!("{}", line.with(crossterm::style::Color::Yellow)),
         EntryState::Done => format!("{}", line.dark_grey()),
     }
+}
+
+pub fn render_entry_summary(summary: &str, tags: &[String]) -> String {
+    format_summary_with_tags(summary, tags)
 }
 
 fn render_note_line(state: EntryState, note: &str, colorize: bool) -> String {

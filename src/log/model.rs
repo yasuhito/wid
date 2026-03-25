@@ -40,6 +40,7 @@ impl EntryState {
 pub struct Entry {
     pub time: String,
     pub summary: String,
+    pub tags: Vec<String>,
     pub state: EntryState,
     pub notes: Vec<String>,
 }
@@ -55,11 +56,25 @@ impl Entry {
         format!("{digest:x}").chars().take(12).collect()
     }
 
-    pub fn transient_note_id(&self, date: &str, index: usize, note: &str) -> String {
+    pub fn transient_note_id(&self, date: &str, note: &str) -> String {
         let entry_id = self.transient_id(date);
-        let digest = md5::compute(format!("{entry_id}\n{index}\n{note}"));
+        let digest = md5::compute(format!("{entry_id}\n{note}"));
         format!("note_{digest:x}").chars().take(17).collect()
     }
+}
+
+pub fn format_summary_with_tags(summary: &str, tags: &[String]) -> String {
+    if tags.is_empty() {
+        return summary.to_string();
+    }
+
+    format!(
+        "{summary} {}",
+        tags.iter()
+            .map(|tag| format!("@{tag}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -86,6 +101,7 @@ pub struct UnfinishedEntry {
     pub date: String,
     pub time: String,
     pub summary: String,
+    pub tags: Vec<String>,
     pub ordinal: usize,
     pub start: usize,
     pub end: usize,
@@ -93,7 +109,12 @@ pub struct UnfinishedEntry {
 
 impl UnfinishedEntry {
     pub fn display_label(&self) -> String {
-        format!("{} {} {}", self.date, self.time, self.summary)
+        format!(
+            "{} {} {}",
+            self.date,
+            self.time,
+            format_summary_with_tags(&self.summary, &self.tags)
+        )
     }
 }
 
@@ -108,6 +129,7 @@ pub struct FocusEntry {
     pub date: String,
     pub time: String,
     pub summary: String,
+    pub tags: Vec<String>,
     pub state: EntryState,
     pub ordinal: usize,
     pub start: usize,
@@ -121,7 +143,7 @@ impl FocusEntry {
             self.date,
             self.state.checkbox(),
             self.time,
-            self.summary
+            format_summary_with_tags(&self.summary, &self.tags)
         )
     }
 }
@@ -137,6 +159,7 @@ pub struct LogEntry {
     pub date: String,
     pub time: String,
     pub summary: String,
+    pub tags: Vec<String>,
     pub state: EntryState,
     pub ordinal: usize,
     pub start: usize,
@@ -150,7 +173,7 @@ impl LogEntry {
             self.date,
             self.state.checkbox(),
             self.time,
-            self.summary
+            format_summary_with_tags(&self.summary, &self.tags)
         )
     }
 }
@@ -173,6 +196,7 @@ pub struct RemovableTarget {
     pub date: String,
     pub time: String,
     pub summary: String,
+    pub tags: Vec<String>,
     pub state: EntryState,
     pub entry_ordinal: usize,
     pub note_ordinal: Option<usize>,
@@ -187,7 +211,7 @@ impl RemovableTarget {
                 self.date,
                 self.state.checkbox(),
                 self.time,
-                self.summary
+                format_summary_with_tags(&self.summary, &self.tags)
             ),
             RemovableKind::Note => {
                 format!("  📝 {}", self.note_text.as_deref().unwrap_or_default())
@@ -219,6 +243,7 @@ mod tests {
             date: "2026-03-25".into(),
             time: "09:15".into(),
             summary: "completed work".into(),
+            tags: Vec::new(),
             state: EntryState::Done,
             ordinal: 0,
             start: 0,
@@ -228,6 +253,7 @@ mod tests {
             date: "2026-03-25".into(),
             time: "09:16".into(),
             summary: "investigate [x]".into(),
+            tags: Vec::new(),
             state: EntryState::Pending,
             ordinal: 1,
             start: 0,
@@ -241,6 +267,14 @@ mod tests {
         assert_eq!(
             non_done_entry.display_label(),
             "2026-03-25 [ ] 09:16 investigate [x]"
+        );
+    }
+
+    #[test]
+    fn format_summary_with_tags_appends_at_tags() {
+        assert_eq!(
+            format_summary_with_tags("fix flaky CI", &["wid".into(), "agent".into()]),
+            "fix flaky CI @wid @agent"
         );
     }
 }

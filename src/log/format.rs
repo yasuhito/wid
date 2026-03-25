@@ -1,8 +1,9 @@
-use super::model::{DaySection, Entry, LogDocument};
+use super::model::{DaySection, Entry, LogDocument, format_summary_with_tags};
 
 pub fn format_entry(entry: &Entry) -> String {
     let checkbox = entry.state.checkbox();
-    format!("- {checkbox} {} {}", entry.time, entry.summary)
+    let summary = format_summary_with_tags(&entry.summary, &entry.tags);
+    format!("- {checkbox} {} {}", entry.time, summary)
 }
 
 pub fn format_day_heading(date: &str) -> String {

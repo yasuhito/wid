@@ -52,6 +52,7 @@ fn format_entry_renders_bullet_line() {
     let entry = Entry {
         time: "11:32".into(),
         summary: "fix failing CI".into(),
+        tags: Vec::new(),
         state: EntryState::Pending,
         notes: Vec::new(),
     };
@@ -64,6 +65,7 @@ fn format_entry_renders_active_checkbox_line() {
     let entry = Entry {
         time: "11:32".into(),
         summary: "fix failing CI".into(),
+        tags: Vec::new(),
         state: EntryState::Active,
         notes: Vec::new(),
     };
@@ -76,6 +78,7 @@ fn format_entry_renders_completed_checkbox_line() {
     let entry = Entry {
         time: "11:32".into(),
         summary: "fix failing CI".into(),
+        tags: Vec::new(),
         state: EntryState::Done,
         notes: Vec::new(),
     };
@@ -105,7 +108,7 @@ fn default_log_path_reads_home_directory() {
 
 #[test]
 fn parse_markdown_sections_and_entries() {
-    let input = "## 2026-03-24\n\n- [ ] 11:32 fix failing CI\n  - follow-up note\n- [>] 11:50 address review feedback\n- [x] 12:10 rework implementation plan\n";
+    let input = "## 2026-03-24\n\n- [ ] 11:32 fix failing CI @wid @agent\n  - follow-up note\n- [>] 11:50 address review feedback\n- [x] 12:10 rework implementation plan @md-edit\n";
 
     let doc = parse_log(input).unwrap();
 
@@ -114,12 +117,31 @@ fn parse_markdown_sections_and_entries() {
     assert_eq!(doc.days[0].entries.len(), 3);
     assert_eq!(doc.days[0].entries[0].time, "11:32");
     assert_eq!(doc.days[0].entries[0].summary, "fix failing CI");
+    assert_eq!(doc.days[0].entries[0].tags, vec!["wid", "agent"]);
     assert_eq!(doc.days[0].entries[0].state, EntryState::Pending);
     assert_eq!(doc.days[0].entries[0].notes, vec!["follow-up note"]);
     assert_eq!(doc.days[0].entries[1].summary, "address review feedback");
+    assert!(doc.days[0].entries[1].tags.is_empty());
     assert_eq!(doc.days[0].entries[1].state, EntryState::Active);
     assert_eq!(doc.days[0].entries[2].summary, "rework implementation plan");
+    assert_eq!(doc.days[0].entries[2].tags, vec!["md-edit"]);
     assert_eq!(doc.days[0].entries[2].state, EntryState::Done);
+}
+
+#[test]
+fn format_entry_renders_tags_at_end_of_summary() {
+    let entry = Entry {
+        time: "11:32".into(),
+        summary: "fix failing CI".into(),
+        tags: vec!["wid".into(), "agent".into()],
+        state: EntryState::Pending,
+        notes: Vec::new(),
+    };
+
+    assert_eq!(
+        format_entry(&entry),
+        "- [ ] 11:32 fix failing CI @wid @agent"
+    );
 }
 
 #[test]

@@ -256,3 +256,23 @@ fn note_by_id_reads_single_line_from_stdin_when_no_args_are_given() {
         "{contents}"
     );
 }
+
+#[test]
+fn note_rejects_duplicate_text_for_same_item() {
+    let dir = unique_temp_dir("note-duplicate");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [>] 08:01 active item\n  - existing note\n",
+    )
+    .unwrap();
+
+    let error =
+        note_command::run_at_path(&path, vec!["existing".into(), "note".into()], None).unwrap_err();
+
+    assert!(
+        format!("{error:#}").contains("duplicate note text for item"),
+        "{error:#}"
+    );
+}
