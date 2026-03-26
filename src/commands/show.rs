@@ -3,6 +3,7 @@ use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 
 use anyhow::Context;
+use chrono::{Local, NaiveDate};
 use crossterm::style::Stylize;
 use serde_json::json;
 
@@ -39,7 +40,11 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
             output.push('\n');
         }
 
-        output.push_str(&format!("## {}\n\n", day.date));
+        let heading = render_day_heading(&day.date);
+        output.push_str(&heading);
+        output.push('\n');
+        output.push_str(&render_day_separator(&heading));
+        output.push('\n');
         for entry in &day.entries {
             let summary = render_entry_summary(&entry.summary, &entry.tags);
             output.push_str(&render_entry_line(
@@ -57,6 +62,27 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
     }
 
     output
+}
+
+fn render_day_heading(date: &str) -> String {
+    let Ok(day) = NaiveDate::parse_from_str(date, "%Y-%m-%d") else {
+        return date.to_string();
+    };
+
+    let label = day.format("%Y-%m-%d %a").to_string();
+    let today = Local::now().date_naive();
+
+    if day == today {
+        format!("Today · {label}")
+    } else if day == today.pred_opt().unwrap_or(today) {
+        format!("Yesterday · {label}")
+    } else {
+        label
+    }
+}
+
+fn render_day_separator(heading: &str) -> String {
+    "─".repeat(heading.chars().count())
 }
 
 pub fn render_document_json(document: &LogDocument) -> String {

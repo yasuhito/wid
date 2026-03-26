@@ -67,10 +67,12 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
     let output = run_wid(&home, &[]);
 
     assert!(output.status.success(), "{output:?}");
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "## 2026-03-24\n\n□ 11:32 fix failing CI\n☑ 12:10 rework implementation plan\n"
-    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<_> = stdout.lines().collect();
+    assert_eq!(lines[0], "2026-03-24 Tue");
+    assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
+    assert_eq!(lines[2], "□ 11:32 fix failing CI");
+    assert_eq!(lines[3], "☑ 12:10 rework implementation plan");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -88,10 +90,27 @@ fn wid_omits_empty_day_sections_from_output() {
     let output = run_wid(&home, &[]);
 
     assert!(output.status.success(), "{output:?}");
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "## 2026-03-25\n\n□ 11:32 fix failing CI\n"
-    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<_> = stdout.lines().collect();
+    assert_eq!(lines[0], "Yesterday · 2026-03-25 Wed");
+    assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
+    assert_eq!(lines[2], "□ 11:32 fix failing CI");
+}
+
+#[test]
+fn wid_render_uses_today_and_yesterday_labels_for_recent_days() {
+    let document = parser::parse_log(
+        "## 2026-03-25\n\n- [x] 17:25 yesterday item\n\n## 2026-03-26\n\n- [>] 08:56 today item\n",
+    )
+    .unwrap();
+
+    let output = show_command::render_document(&document, false);
+
+    assert!(output.contains("Yesterday · 2026-03-25 Wed"), "{output:?}");
+    assert!(output.contains("Today · 2026-03-26 Thu"), "{output:?}");
+    let lines: Vec<_> = output.lines().collect();
+    assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
+    assert_eq!(lines[5], "─".repeat(lines[4].chars().count()));
 }
 
 #[test]
