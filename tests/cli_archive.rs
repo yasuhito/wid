@@ -92,8 +92,8 @@ fn archive_moves_all_done_entries_and_keeps_open_entries_in_log() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("□ 11:48 pending task"), "{stdout}");
-    assert!(stdout.contains("◉ 09:30 active task"), "{stdout}");
+    assert!(stdout.contains("□ pending task  11:48"), "{stdout}");
+    assert!(stdout.contains("◉ active task  09:30"), "{stdout}");
     assert!(!stdout.contains("finished task"), "{stdout}");
 }
 

@@ -71,8 +71,8 @@ fn wid_without_arguments_prints_all_stored_log_entries() {
     let lines: Vec<_> = stdout.lines().collect();
     assert_eq!(lines[0], "2026-03-24 Tue");
     assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
-    assert_eq!(lines[2], "□ 11:32 fix failing CI");
-    assert_eq!(lines[3], "☑ 12:10 rework implementation plan");
+    assert_eq!(lines[2], "□ fix failing CI  11:32");
+    assert_eq!(lines[3], "☑ rework implementation plan  12:10");
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 }
 
@@ -94,7 +94,7 @@ fn wid_omits_empty_day_sections_from_output() {
     let lines: Vec<_> = stdout.lines().collect();
     assert_eq!(lines[0], "Yesterday · 2026-03-25 Wed");
     assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
-    assert_eq!(lines[2], "□ 11:32 fix failing CI");
+    assert_eq!(lines[2], "□ fix failing CI  11:32");
 }
 
 #[test]
@@ -220,12 +220,13 @@ fn render_document_with_color_highlights_active_and_done_entries() {
     let output = show_command::render_document(&document, true);
 
     assert!(output.contains("\u{1b}["), "{output:?}");
-    assert!(output.contains("◉ 11:32 active"), "{output:?}");
-    assert!(output.contains("☑ 12:10 done"), "{output:?}");
-    assert!(output.contains("□ 12:30 pending"), "{output:?}");
-    assert!(output.contains("11:32 active"), "{output:?}");
+    assert!(output.contains("◉"), "{output:?}");
+    assert!(output.contains("☑"), "{output:?}");
+    assert!(output.contains("□"), "{output:?}");
+    assert!(output.find("active").unwrap() < output.find("11:32").unwrap(), "{output:?}");
+    assert!(output.find("done").unwrap() < output.find("12:10").unwrap(), "{output:?}");
+    assert!(output.find("pending").unwrap() < output.find("12:30").unwrap(), "{output:?}");
     assert!(output.contains("  · first note"), "{output:?}");
-    assert!(output.contains("12:10 done"), "{output:?}");
     assert!(output.contains("  · done note"), "{output:?}");
     assert!(!output.contains("\n  · done note\n"), "{output:?}");
 }
@@ -237,6 +238,6 @@ fn render_document_shows_note_emoji_without_color() {
 
     let output = show_command::render_document(&document, false);
 
-    assert!(output.contains("□ 11:32 active"), "{output:?}");
+    assert!(output.contains("□ active  11:32"), "{output:?}");
     assert!(output.contains("  · first note"), "{output:?}");
 }

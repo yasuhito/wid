@@ -206,7 +206,7 @@ fn focus_defaults_to_latest_entry_and_clears_previous_active() {
 
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("◉ 11:48 latest task"), "{stdout}");
+    assert!(stdout.contains("◉ latest task  11:48"), "{stdout}");
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),

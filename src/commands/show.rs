@@ -143,16 +143,26 @@ pub fn print_log_if_changed(path: &Path, before: &str) -> anyhow::Result<()> {
 }
 
 fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: bool) -> String {
-    let line = format!("{} {} {}", state.display_marker(), time, summary);
+    let marker = state.display_marker();
+    let body = render_entry_body(summary, time);
     if !colorize {
-        return line;
+        return format!("{marker} {body}");
     }
 
     match state {
-        EntryState::Pending => line,
-        EntryState::Active => format!("{}", line.with(crossterm::style::Color::Yellow)),
-        EntryState::Done => format!("{}", line.dark_grey()),
+        EntryState::Pending => format!("{marker} {summary}  {}", time.dark_grey()),
+        EntryState::Active => format!(
+            "{} {}  {}",
+            marker.with(crossterm::style::Color::Yellow),
+            summary.with(crossterm::style::Color::Yellow),
+            time.with(crossterm::style::Color::DarkYellow)
+        ),
+        EntryState::Done => format!("{} {}  {}", marker.dark_grey(), summary.dark_grey(), time.dark_grey()),
     }
+}
+
+fn render_entry_body(summary: &str, time: &str) -> String {
+    format!("{summary}  {time}")
 }
 
 pub fn render_entry_summary(summary: &str, tags: &[String]) -> String {

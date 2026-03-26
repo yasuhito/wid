@@ -194,7 +194,7 @@ fn done_command_marks_active_entry_first() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("☑ 12:10 rework implementation plan"),
+        stdout.contains("☑ rework implementation plan  12:10"),
         "{stdout}"
     );
     let contents = fs::read_to_string(log_path(&home)).unwrap();
