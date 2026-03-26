@@ -251,11 +251,16 @@ fn note_command_interactive_appends_to_selected_entry() {
         "## 2026-03-25\n\n- [>] 08:01 active item\n  - existing active note\n- [x] 08:06 done item\n  - existing done note\n- [ ] 08:12 pending item\n  - existing pending note\n  - selected note\n"
     );
     assert_eq!(
-        picker.items,
+        picker.rows,
         vec![
-            "2026-03-25 [>] 08:01 active item\n  · existing active note".to_string(),
-            "2026-03-25 [x] 08:06 done item\n  · existing done note".to_string(),
-            "2026-03-25 [ ] 08:12 pending item\n  · existing pending note".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "◉ active item  08:01".to_string(),
+            "  · existing active note".to_string(),
+            "☑ done item  08:06".to_string(),
+            "  · existing done note".to_string(),
+            "□ pending item  08:12".to_string(),
+            "  · existing pending note".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -325,11 +330,15 @@ fn note_command_interactive_starts_at_top_even_when_an_active_item_exists() {
     note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
 
     assert_eq!(
-        picker.items,
+        picker.rows,
         vec![
-            "2026-03-25 [ ] 08:01 first pending\n  · first pending note".to_string(),
-            "2026-03-25 [>] 08:12 active item\n  · active note".to_string(),
-            "2026-03-25 [ ] 08:20 later pending".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ first pending  08:01".to_string(),
+            "  · first pending note".to_string(),
+            "◉ active item  08:12".to_string(),
+            "  · active note".to_string(),
+            "□ later pending  08:20".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -351,10 +360,46 @@ fn note_command_interactive_shows_done_items_but_defaults_to_latest_open_item() 
     note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
 
     assert_eq!(
-        picker.items,
+        picker.rows,
         vec![
-            "2026-03-25 [ ] 08:01 first pending\n  · first pending note".to_string(),
-            "2026-03-25 [x] 08:12 done item\n  · done note".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ first pending  08:01".to_string(),
+            "  · first pending note".to_string(),
+            "☑ done item  08:12".to_string(),
+            "  · done note".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
+fn note_command_interactive_inserts_blank_line_before_later_date_header() {
+    let dir = unique_temp_dir("note-interactive-date-gap");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [ ] 08:01 older pending\n  - older note\n\n## 2026-03-26\n\n- [ ] 09:12 newer pending\n  - newer note\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    let mut editor = FakeSummaryEditor::new("unused");
+    note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(
+        picker.rows,
+        vec![
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ older pending  08:01".to_string(),
+            "  · older note".to_string(),
+            " ".to_string(),
+            "Today · 2026-03-26 Thu".to_string(),
+            "─".repeat("Today · 2026-03-26 Thu".chars().count()),
+            "□ newer pending  09:12".to_string(),
+            "  · newer note".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -415,7 +460,7 @@ fn note_rejects_duplicate_text_for_same_item() {
 
 struct FakePicker {
     result: Option<usize>,
-    items: Vec<String>,
+    rows: Vec<String>,
     default_selected: Option<usize>,
 }
 
@@ -423,26 +468,43 @@ impl FakePicker {
     fn new(result: Option<usize>) -> Self {
         Self {
             result,
-            items: Vec::new(),
+            rows: Vec::new(),
             default_selected: None,
         }
     }
 }
 
-impl done_picker::Picker for FakePicker {
-    fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
-        self.pick_with_selected(entries, 0)
-    }
-
-    fn pick_with_selected<T: model::PickerItem>(
+impl done_picker::GroupedLogEntryPicker for FakePicker {
+    fn pick_grouped_entries(
         &mut self,
-        entries: &[T],
+        entries: &[model::LogEntry],
         selected: usize,
     ) -> anyhow::Result<Option<usize>> {
-        self.items = entries
-            .iter()
-            .map(model::PickerItem::display_label)
-            .collect();
+        self.rows.clear();
+        let mut current_date: Option<&str> = None;
+        for entry in entries {
+            if current_date != Some(entry.date.as_str()) {
+                if !self.rows.is_empty() {
+                    self.rows.push(" ".to_string());
+                }
+                let heading = show_command::render_day_heading(&entry.date);
+                self.rows.push(heading.clone());
+                self.rows.push("─".repeat(heading.chars().count()));
+                current_date = Some(entry.date.as_str());
+            }
+
+            self.rows.push(format!(
+                "{} {}  {}",
+                entry.state.display_marker(),
+                show_command::render_entry_summary(&entry.summary, &entry.tags),
+                entry.time
+            ));
+            self.rows.extend(
+                entry.notes
+                    .iter()
+                    .map(|note| model::format_note_display(note)),
+            );
+        }
         self.default_selected = Some(selected);
         Ok(self.result)
     }

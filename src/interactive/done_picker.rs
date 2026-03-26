@@ -13,6 +13,7 @@ use ratatui::widgets::Clear as ClearWidget;
 use ratatui::widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Widget};
 use ratatui::{Frame, Terminal};
 
+use crate::commands::show::{render_day_heading, render_day_separator, render_entry_summary};
 use crate::log::model::{EntryState, LogEntry, PickerItem};
 
 pub trait Picker {
@@ -33,6 +34,14 @@ pub trait DoneStatePicker {
         entries: &[LogEntry],
         selected: usize,
     ) -> Result<Option<Vec<EntryState>>>;
+}
+
+pub trait GroupedLogEntryPicker {
+    fn pick_grouped_entries(
+        &mut self,
+        entries: &[LogEntry],
+        selected: usize,
+    ) -> Result<Option<usize>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,6 +149,13 @@ impl DonePickerState {
 
 pub struct TerminalPicker;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GroupedPickerRow {
+    label: String,
+    selectable_entry_index: Option<usize>,
+    line_count: usize,
+}
+
 impl Picker for TerminalPicker {
     fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
         self.pick_with_selected(entries, 0)
@@ -180,6 +196,50 @@ impl Picker for TerminalPicker {
                     PickerMode::Browse,
                     anchor_row,
                 )
+            })?;
+
+            if let Event::Key(key) = event::read()? {
+                match state.handle_key(key) {
+                    PickerOutcome::Continue => {}
+                    PickerOutcome::Confirmed(index) => return Ok(Some(index)),
+                    PickerOutcome::Cancelled => return Ok(None),
+                }
+            }
+        }
+    }
+}
+
+impl GroupedLogEntryPicker for TerminalPicker {
+    fn pick_grouped_entries(
+        &mut self,
+        entries: &[LogEntry],
+        selected: usize,
+    ) -> Result<Option<usize>> {
+        if entries.is_empty() {
+            return Ok(None);
+        }
+
+        let rows = build_grouped_entry_rows(entries);
+        let anchor_row = cursor::position()?.1;
+        let clear_area = panel_area(
+            Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
+            anchor_row,
+            grouped_picker_content_lines(&rows),
+            PickerMode::Browse,
+        );
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, cursor::Hide)?;
+        let _guard = TerminalGuard { clear_area };
+
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+        let mut state = PickerState::new(entries.len());
+        state.selected = selected.min(entries.len().saturating_sub(1));
+
+        loop {
+            terminal.draw(|frame| {
+                render_grouped_frame(frame, &rows, state.selected(), anchor_row)
             })?;
 
             if let Event::Key(key) = event::read()? {
@@ -411,6 +471,41 @@ fn render_done_frame(
         .render(body[1], frame.buffer_mut());
 }
 
+fn render_grouped_frame(
+    frame: &mut Frame,
+    rows: &[GroupedPickerRow],
+    selected_entry: usize,
+    anchor_row: u16,
+) {
+    let area = panel_area(
+        frame.area(),
+        anchor_row,
+        grouped_picker_content_lines(rows),
+        PickerMode::Browse,
+    );
+    ClearWidget.render(area, frame.buffer_mut());
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .split(area);
+
+    let theme = PickerTheme::omarchy();
+
+    Paragraph::new("Select an entry:")
+        .style(theme.title)
+        .render(chunks[0], frame.buffer_mut());
+
+    let body = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(chunks[1]);
+
+    render_grouped_list(frame, body[0], rows, selected_entry, theme);
+    Paragraph::new(footer_text(PickerMode::Browse))
+        .style(theme.footer)
+        .render(body[1], frame.buffer_mut());
+}
+
 fn footer_text(mode: PickerMode) -> &'static str {
     match mode {
         PickerMode::Browse => "j/Down next, k/Up previous, Enter confirm, q/Esc cancel",
@@ -444,6 +539,21 @@ fn render_list<T: PickerItem>(
 ) {
     let labels: Vec<String> = entries.iter().map(|entry| entry.display_label()).collect();
     render_label_list(frame, area, &labels, selected, theme);
+}
+
+fn render_grouped_list(
+    frame: &mut Frame,
+    area: Rect,
+    rows: &[GroupedPickerRow],
+    selected_entry: usize,
+    theme: PickerTheme,
+) {
+    let labels: Vec<String> = rows.iter().map(|row| row.label.clone()).collect();
+    let selected_row = rows
+        .iter()
+        .position(|row| row.selectable_entry_index == Some(selected_entry))
+        .unwrap_or(0);
+    render_label_list(frame, area, &labels, selected_row, theme);
 }
 
 fn render_label_list(
@@ -493,6 +603,50 @@ fn done_picker_content_lines(entries: &[LogEntry]) -> usize {
 
 fn picker_content_lines<T: PickerItem>(entries: &[T]) -> usize {
     entries.iter().map(PickerItem::line_count).sum()
+}
+
+fn grouped_picker_content_lines(rows: &[GroupedPickerRow]) -> usize {
+    rows.iter().map(|row| row.line_count).sum()
+}
+
+fn build_grouped_entry_rows(entries: &[LogEntry]) -> Vec<GroupedPickerRow> {
+    let mut rows = Vec::new();
+    let mut current_date: Option<&str> = None;
+
+    for (index, entry) in entries.iter().enumerate() {
+        if current_date != Some(entry.date.as_str()) {
+            if !rows.is_empty() {
+                rows.push(GroupedPickerRow {
+                    label: " ".to_string(),
+                    selectable_entry_index: None,
+                    line_count: 1,
+                });
+            }
+            let heading = render_day_heading(&entry.date);
+            rows.push(GroupedPickerRow {
+                label: format!("{heading}\n{}", render_day_separator(&heading)),
+                selectable_entry_index: None,
+                line_count: 2,
+            });
+            current_date = Some(entry.date.as_str());
+        }
+
+        let summary = render_entry_summary(&entry.summary, &entry.tags);
+        let mut lines = vec![format!(
+            "{} {}  {}",
+            entry.state.display_marker(),
+            summary,
+            entry.time
+        )];
+        lines.extend(entry.notes.iter().map(|note| crate::log::model::format_note_display(note)));
+        rows.push(GroupedPickerRow {
+            label: lines.join("\n"),
+            selectable_entry_index: Some(index),
+            line_count: entry.display_line_count(),
+        });
+    }
+
+    rows
 }
 
 fn render_confirmation_inline(
@@ -782,5 +936,39 @@ mod tests {
                 .iter()
                 .all(|row| row.text.is_empty())
         );
+    }
+
+    #[test]
+    fn grouped_rows_use_visible_spacer_between_dates() {
+        let entries = vec![
+            crate::log::model::LogEntry {
+                date: "2026-03-25".into(),
+                time: "08:01".into(),
+                summary: "older".into(),
+                tags: Vec::new(),
+                notes: vec!["older note".into()],
+                state: crate::log::model::EntryState::Pending,
+                ordinal: 0,
+                start: 0,
+                end: 0,
+            },
+            crate::log::model::LogEntry {
+                date: "2026-03-26".into(),
+                time: "09:12".into(),
+                summary: "newer".into(),
+                tags: Vec::new(),
+                notes: vec!["newer note".into()],
+                state: crate::log::model::EntryState::Pending,
+                ordinal: 1,
+                start: 0,
+                end: 0,
+            },
+        ];
+
+        let rows = build_grouped_entry_rows(&entries);
+
+        assert_eq!(rows[2].label, " ");
+        assert_eq!(rows[2].line_count, 1);
+        assert_eq!(rows[2].selectable_entry_index, None);
     }
 }

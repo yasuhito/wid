@@ -8,7 +8,7 @@ use rustyline::error::ReadlineError;
 
 use crate::commands::now::resolve_summary;
 use crate::commands::show::print_log_if_changed;
-use crate::interactive::done_picker::{Picker, TerminalPicker};
+use crate::interactive::done_picker::{GroupedLogEntryPicker, TerminalPicker};
 use crate::log::{
     paths::default_log_path,
     store::{append_note_by_transient_id, append_note_to_latest_open_entry, collect_entries},
@@ -74,7 +74,7 @@ pub fn run_at_path_with_options(
     text: Vec<String>,
     id: Option<&str>,
     interactive: bool,
-    picker: &mut impl Picker,
+    picker: &mut impl GroupedLogEntryPicker,
     editor: &mut impl NoteEditor,
 ) -> Result<()> {
     if interactive {
@@ -91,7 +91,7 @@ pub fn run_at_path_with_options(
 
 pub fn run_interactive_at_path(
     path: &Path,
-    picker: &mut impl Picker,
+    picker: &mut impl GroupedLogEntryPicker,
     editor: &mut impl NoteEditor,
 ) -> Result<()> {
     let entries = collect_entries(path)?;
@@ -99,7 +99,7 @@ pub fn run_interactive_at_path(
         return Err(anyhow!("no entry found"));
     }
 
-    let Some(index) = picker.pick_with_selected(&entries, 0)? else {
+    let Some(index) = picker.pick_grouped_entries(&entries, 0)? else {
         return Ok(());
     };
 

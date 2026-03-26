@@ -64,7 +64,7 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
     output
 }
 
-fn render_day_heading(date: &str) -> String {
+pub(crate) fn render_day_heading(date: &str) -> String {
     let Ok(day) = NaiveDate::parse_from_str(date, "%Y-%m-%d") else {
         return date.to_string();
     };
@@ -81,7 +81,7 @@ fn render_day_heading(date: &str) -> String {
     }
 }
 
-fn render_day_separator(heading: &str) -> String {
+pub(crate) fn render_day_separator(heading: &str) -> String {
     "─".repeat(heading.chars().count())
 }
 
