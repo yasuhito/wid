@@ -99,12 +99,7 @@ pub fn run_interactive_at_path(
         return Err(anyhow!("no entry found"));
     }
 
-    let default_index = entries
-        .iter()
-        .position(|entry| entry.state.is_active())
-        .unwrap_or(0);
-
-    let Some(index) = picker.pick_with_selected(&entries, default_index)? else {
+    let Some(index) = picker.pick_with_selected(&entries, 0)? else {
         return Ok(());
     };
 

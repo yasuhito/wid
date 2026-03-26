@@ -113,6 +113,31 @@ fn focus_interactive_lists_only_pending_entries() {
 }
 
 #[test]
+fn focus_interactive_shows_notes_under_each_focusable_item() {
+    let dir = unique_temp_dir("focus-notes");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# wid log\n\n## 2026-03-24\n\n- [>] 11:32 current task\n  - current note\n- [ ] 11:48 first pending\n  - pending note\n- [x] 12:10 done\n  - done note\n\n## 2026-03-25\n\n- [ ] 09:15 second pending\n  - another pending note\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    focus_command::run_interactive_at_path(&path, &mut picker).unwrap();
+
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-24 [>] 11:32 current task\n  · current note".to_string(),
+            "2026-03-24 [ ] 11:48 first pending\n  · pending note".to_string(),
+            "2026-03-25 [ ] 09:15 second pending\n  · another pending note".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
 fn focus_interactive_errors_when_no_focusable_entry_exists() {
     let dir = unique_temp_dir("focus-empty");
     let path = dir.join("log.md");

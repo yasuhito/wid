@@ -310,6 +310,32 @@ fn note_command_interactive_defaults_to_first_item_when_no_active_exists() {
 }
 
 #[test]
+fn note_command_interactive_starts_at_top_even_when_an_active_item_exists() {
+    let dir = unique_temp_dir("note-interactive-active-not-default");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [ ] 08:01 first pending\n  - first pending note\n- [>] 08:12 active item\n  - active note\n- [ ] 08:20 later pending\n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(None);
+    let mut editor = FakeSummaryEditor::new("unused");
+    note_command::run_interactive_at_path(&path, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(
+        picker.items,
+        vec![
+            "2026-03-25 [ ] 08:01 first pending\n  · first pending note".to_string(),
+            "2026-03-25 [>] 08:12 active item\n  · active note".to_string(),
+            "2026-03-25 [ ] 08:20 later pending".to_string(),
+        ]
+    );
+    assert_eq!(picker.default_selected, Some(0));
+}
+
+#[test]
 fn note_command_interactive_shows_done_items_but_defaults_to_latest_open_item() {
     let dir = unique_temp_dir("note-interactive-done-visible");
     let path = dir.join("log.md");

@@ -886,6 +886,7 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
     let mut entries = Vec::new();
     let mut line_start = 0;
     let mut current_date: Option<String> = None;
+    let mut current_entry_index: Option<usize> = None;
 
     for segment in contents.split_inclusive('\n') {
         let line_end = line_start + segment.len();
@@ -893,8 +894,10 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
 
         if let Some(date) = parse_day_heading(line) {
             current_date = Some(date.to_string());
+            current_entry_index = None;
         } else if line.starts_with("## ") {
             current_date = None;
+            current_entry_index = None;
         } else if let Some(date) = current_date.as_ref()
             && let Some(entry) = parse_entry_line(line)
             && !entry.state.is_done()
@@ -904,11 +907,21 @@ fn collect_focus_entries_from_contents(contents: &str) -> Vec<FocusEntry> {
                 time: entry.time,
                 summary: entry.summary,
                 tags: entry.tags,
+                notes: entry.notes,
                 state: entry.state,
                 ordinal: entries.len(),
                 start: line_start,
                 end: line_end,
             });
+            current_entry_index = Some(entries.len() - 1);
+        } else if let Some(note) = parse_note_line(line) {
+            if let Some(index) = current_entry_index
+                && let Some(entry) = entries.get_mut(index)
+            {
+                entry.notes.push(note.to_string());
+            }
+        } else {
+            current_entry_index = None;
         }
 
         line_start = line_end;

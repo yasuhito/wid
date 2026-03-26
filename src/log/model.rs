@@ -146,6 +146,7 @@ pub struct FocusEntry {
     pub time: String,
     pub summary: String,
     pub tags: Vec<String>,
+    pub notes: Vec<String>,
     pub state: EntryState,
     pub ordinal: usize,
     pub start: usize,
@@ -154,19 +155,29 @@ pub struct FocusEntry {
 
 impl FocusEntry {
     pub fn display_label(&self) -> String {
-        format!(
+        let mut lines = vec![format!(
             "{} {} {} {}",
             self.date,
             self.state.checkbox(),
             self.time,
             format_summary_with_tags(&self.summary, &self.tags)
-        )
+        )];
+        lines.extend(self.notes.iter().map(|note| format_note_display(note)));
+        lines.join("\n")
+    }
+
+    pub fn display_line_count(&self) -> usize {
+        1 + self.notes.len()
     }
 }
 
 impl PickerItem for FocusEntry {
     fn display_label(&self) -> String {
         self.display_label()
+    }
+
+    fn line_count(&self) -> usize {
+        self.display_line_count()
     }
 }
 
