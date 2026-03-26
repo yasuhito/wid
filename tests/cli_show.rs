@@ -223,9 +223,18 @@ fn render_document_with_color_highlights_active_and_done_entries() {
     assert!(output.contains("◉"), "{output:?}");
     assert!(output.contains("☑"), "{output:?}");
     assert!(output.contains("□"), "{output:?}");
-    assert!(output.find("active").unwrap() < output.find("11:32").unwrap(), "{output:?}");
-    assert!(output.find("done").unwrap() < output.find("12:10").unwrap(), "{output:?}");
-    assert!(output.find("pending").unwrap() < output.find("12:30").unwrap(), "{output:?}");
+    assert!(
+        output.find("active").unwrap() < output.find("11:32").unwrap(),
+        "{output:?}"
+    );
+    assert!(
+        output.find("done").unwrap() < output.find("12:10").unwrap(),
+        "{output:?}"
+    );
+    assert!(
+        output.find("pending").unwrap() < output.find("12:30").unwrap(),
+        "{output:?}"
+    );
     assert!(output.contains("  · first note"), "{output:?}");
     assert!(output.contains("  · done note"), "{output:?}");
     assert!(!output.contains("\n  · done note\n"), "{output:?}");

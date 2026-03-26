@@ -154,6 +154,15 @@ struct GroupedPickerRow {
     label: String,
     selectable_entry_index: Option<usize>,
     line_count: usize,
+    kind: GroupedPickerRowKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GroupedPickerRowKind {
+    Header,
+    Separator,
+    Spacer,
+    Item,
 }
 
 impl Picker for TerminalPicker {
@@ -189,7 +198,8 @@ impl Picker for TerminalPicker {
         state.selected = selected.min(entries.len().saturating_sub(1));
 
         loop {
-            terminal.draw(|frame| render_grouped_frame(frame, &rows, state.selected(), anchor_row))?;
+            terminal
+                .draw(|frame| render_grouped_frame(frame, &rows, state.selected(), anchor_row))?;
 
             if let Event::Key(key) = event::read()? {
                 match state.handle_key(key) {
@@ -231,9 +241,8 @@ impl GroupedLogEntryPicker for TerminalPicker {
         state.selected = selected.min(entries.len().saturating_sub(1));
 
         loop {
-            terminal.draw(|frame| {
-                render_grouped_frame(frame, &rows, state.selected(), anchor_row)
-            })?;
+            terminal
+                .draw(|frame| render_grouped_frame(frame, &rows, state.selected(), anchor_row))?;
 
             if let Event::Key(key) = event::read()? {
                 match state.handle_key(key) {
@@ -319,7 +328,14 @@ impl TerminalPicker {
 
         loop {
             terminal.draw(|frame| {
-                render_grouped_delete_frame(frame, &rows, entries, state.selected(), mode, anchor_row)
+                render_grouped_delete_frame(
+                    frame,
+                    &rows,
+                    entries,
+                    state.selected(),
+                    mode,
+                    anchor_row,
+                )
             })?;
 
             if let Event::Key(key) = event::read()? {
@@ -360,6 +376,7 @@ enum PickerMode {
 #[derive(Debug, Clone, Copy)]
 struct PickerTheme {
     title: Style,
+    separator: Style,
     normal: Style,
     selected: Style,
     accent: Style,
@@ -370,6 +387,7 @@ impl PickerTheme {
     fn omarchy() -> Self {
         Self {
             title: Style::default().fg(Color::Rgb(160, 167, 191)),
+            separator: Style::default().fg(Color::Rgb(95, 102, 126)),
             normal: Style::default().fg(Color::Rgb(188, 194, 216)),
             selected: Style::default()
                 .fg(Color::Black)
@@ -539,23 +557,27 @@ fn render_grouped_list(
     selected_entry: usize,
     theme: PickerTheme,
 ) {
-    let labels: Vec<String> = rows.iter().map(|row| row.label.clone()).collect();
     let selected_row = find_selected_row(rows, selected_entry);
-    render_label_list(frame, area, &labels, selected_row, theme);
+    render_label_list(frame, area, rows, selected_row, theme);
 }
 
 fn render_label_list(
     frame: &mut Frame,
     area: Rect,
-    labels: &[String],
+    rows: &[GroupedPickerRow],
     selected: usize,
     theme: PickerTheme,
 ) {
-    let items: Vec<_> = labels
+    let items: Vec<_> = rows
         .iter()
-        .map(|label| {
-            let lines = label.lines().map(Line::from).collect::<Vec<_>>();
-            ListItem::new(Text::from(lines)).style(theme.normal)
+        .map(|row| {
+            let lines = row.label.lines().map(Line::from).collect::<Vec<_>>();
+            let style = match row.kind {
+                GroupedPickerRowKind::Header => theme.title,
+                GroupedPickerRowKind::Separator => theme.separator,
+                GroupedPickerRowKind::Spacer | GroupedPickerRowKind::Item => theme.normal,
+            };
+            ListItem::new(Text::from(lines)).style(style)
         })
         .collect();
 
@@ -571,11 +593,11 @@ fn render_label_list(
     }
 
     let offset = state.offset();
-    let relative = labels
+    let relative = rows
         .iter()
         .skip(offset)
         .take(selected.saturating_sub(offset))
-        .map(|label| label.lines().count() as u16)
+        .map(|row| row.line_count as u16)
         .sum::<u16>();
     if relative >= area.height {
         return;
@@ -606,13 +628,21 @@ fn build_grouped_rows<T: GroupedPickerItem>(entries: &[T]) -> Vec<GroupedPickerR
                     label: " ".to_string(),
                     selectable_entry_index: None,
                     line_count: 1,
+                    kind: GroupedPickerRowKind::Spacer,
                 });
             }
             let heading = render_day_heading(entry.group_date());
             rows.push(GroupedPickerRow {
-                label: format!("{heading}\n{}", render_day_separator(&heading)),
+                label: heading.clone(),
                 selectable_entry_index: None,
-                line_count: 2,
+                line_count: 1,
+                kind: GroupedPickerRowKind::Header,
+            });
+            rows.push(GroupedPickerRow {
+                label: render_day_separator(&heading),
+                selectable_entry_index: None,
+                line_count: 1,
+                kind: GroupedPickerRowKind::Separator,
             });
             current_date = Some(entry.group_date());
         }
@@ -621,6 +651,7 @@ fn build_grouped_rows<T: GroupedPickerItem>(entries: &[T]) -> Vec<GroupedPickerR
             label: entry.grouped_display_label(),
             selectable_entry_index: Some(index),
             line_count: entry.grouped_line_count(),
+            kind: GroupedPickerRowKind::Item,
         });
     }
 
@@ -638,24 +669,43 @@ fn build_grouped_done_rows(entries: &[LogEntry], states: &[EntryState]) -> Vec<G
                     label: " ".to_string(),
                     selectable_entry_index: None,
                     line_count: 1,
+                    kind: GroupedPickerRowKind::Spacer,
                 });
             }
             let heading = render_day_heading(&entry.date);
             rows.push(GroupedPickerRow {
-                label: format!("{heading}\n{}", render_day_separator(&heading)),
+                label: heading.clone(),
                 selectable_entry_index: None,
-                line_count: 2,
+                line_count: 1,
+                kind: GroupedPickerRowKind::Header,
+            });
+            rows.push(GroupedPickerRow {
+                label: render_day_separator(&heading),
+                selectable_entry_index: None,
+                line_count: 1,
+                kind: GroupedPickerRowKind::Separator,
             });
             current_date = Some(entry.date.as_str());
         }
 
         let summary = render_entry_summary(&entry.summary, &entry.tags);
-        let mut lines = vec![format!("{} {}  {}", state.display_marker(), summary, entry.time)];
-        lines.extend(entry.notes.iter().map(|note| crate::log::model::format_note_display(note)));
+        let mut lines = vec![format!(
+            "{} {}  {}",
+            state.display_marker(),
+            summary,
+            entry.time
+        )];
+        lines.extend(
+            entry
+                .notes
+                .iter()
+                .map(|note| crate::log::model::format_note_display(note)),
+        );
         rows.push(GroupedPickerRow {
             label: lines.join("\n"),
             selectable_entry_index: Some(index),
             line_count: entry.display_line_count(),
+            kind: GroupedPickerRowKind::Item,
         });
     }
 
@@ -751,7 +801,8 @@ mod tests {
             mode,
         );
         let top_padding = panel.y as usize;
-        let mut rows = Vec::with_capacity(top_padding + grouped_picker_content_lines(&rows_for_picker) + 3);
+        let mut rows =
+            Vec::with_capacity(top_padding + grouped_picker_content_lines(&rows_for_picker) + 3);
         rows.extend((0..top_padding).map(|_| TestRow {
             text: String::new(),
             fg: Color::Reset,
@@ -985,8 +1036,11 @@ mod tests {
 
         let rows = build_grouped_rows(&entries);
 
-        assert_eq!(rows[2].label, " ");
-        assert_eq!(rows[2].line_count, 1);
-        assert_eq!(rows[2].selectable_entry_index, None);
+        assert_eq!(rows[0].kind, GroupedPickerRowKind::Header);
+        assert_eq!(rows[1].kind, GroupedPickerRowKind::Separator);
+        assert_eq!(rows[3].label, " ");
+        assert_eq!(rows[3].line_count, 1);
+        assert_eq!(rows[3].selectable_entry_index, None);
+        assert_eq!(rows[3].kind, GroupedPickerRowKind::Spacer);
     }
 }

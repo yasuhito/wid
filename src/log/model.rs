@@ -365,7 +365,9 @@ impl GroupedPickerItem for RemovableTarget {
                 format_summary_with_tags(&self.summary, &self.tags),
                 self.time
             ),
-            RemovableKind::Note => format_note_display(self.note_text.as_deref().unwrap_or_default()),
+            RemovableKind::Note => {
+                format_note_display(self.note_text.as_deref().unwrap_or_default())
+            }
         }
     }
 }

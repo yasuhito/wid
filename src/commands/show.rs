@@ -43,7 +43,7 @@ pub fn render_document(document: &LogDocument, colorize: bool) -> String {
         let heading = render_day_heading(&day.date);
         output.push_str(&heading);
         output.push('\n');
-        output.push_str(&render_day_separator(&heading));
+        output.push_str(&render_day_separator_line(&heading, colorize));
         output.push('\n');
         for entry in &day.entries {
             let summary = render_entry_summary(&entry.summary, &entry.tags);
@@ -83,6 +83,15 @@ pub(crate) fn render_day_heading(date: &str) -> String {
 
 pub(crate) fn render_day_separator(heading: &str) -> String {
     "─".repeat(heading.chars().count())
+}
+
+fn render_day_separator_line(heading: &str, colorize: bool) -> String {
+    let separator = render_day_separator(heading);
+    if colorize {
+        format!("{}", separator.dark_grey())
+    } else {
+        separator
+    }
 }
 
 pub fn render_document_json(document: &LogDocument) -> String {
@@ -157,7 +166,12 @@ fn render_entry_line(state: EntryState, time: &str, summary: &str, colorize: boo
             summary.with(crossterm::style::Color::Yellow),
             time.with(crossterm::style::Color::DarkYellow)
         ),
-        EntryState::Done => format!("{} {}  {}", marker.dark_grey(), summary.dark_grey(), time.dark_grey()),
+        EntryState::Done => format!(
+            "{} {}  {}",
+            marker.dark_grey(),
+            summary.dark_grey(),
+            time.dark_grey()
+        ),
     }
 }
 

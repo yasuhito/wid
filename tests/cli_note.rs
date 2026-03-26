@@ -500,7 +500,8 @@ impl done_picker::GroupedLogEntryPicker for FakePicker {
                 entry.time
             ));
             self.rows.extend(
-                entry.notes
+                entry
+                    .notes
                     .iter()
                     .map(|note| model::format_note_display(note)),
             );

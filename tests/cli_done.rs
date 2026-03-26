@@ -746,26 +746,21 @@ impl done_picker::DoneStatePicker for FakeDonePicker {
                     rows.push(heading.clone());
                     rows.push("─".repeat(heading.chars().count()));
                 }
-                rows.extend(
-                    entry
-                        .display_label()
-                        .lines()
-                        .map(|line| {
-                            if let Some((_, rest)) = line.split_once(' ')
-                                && rest.starts_with("[")
-                            {
-                                let summary =
-                                    show_command::render_entry_summary(&entry.summary, &entry.tags);
-                                return format!(
-                                    "{} {}  {}",
-                                    entry.state.display_marker(),
-                                    summary,
-                                    entry.time
-                                );
-                            }
-                            line.to_string()
-                        }),
-                );
+                rows.extend(entry.display_label().lines().map(|line| {
+                    if let Some((_, rest)) = line.split_once(' ')
+                        && rest.starts_with("[")
+                    {
+                        let summary =
+                            show_command::render_entry_summary(&entry.summary, &entry.tags);
+                        return format!(
+                            "{} {}  {}",
+                            entry.state.display_marker(),
+                            summary,
+                            entry.time
+                        );
+                    }
+                    line.to_string()
+                }));
                 rows
             })
             .collect();
