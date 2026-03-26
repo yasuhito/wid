@@ -20,10 +20,12 @@ wid add investigate failing CI on md-edit @md-edit
 wid add review open PR comments
 ```
 
-Those become pending items:
+In the Markdown log, those become pending items:
 
 ```text
-[ ] pending
+[ ] tighten README wording @wid
+[ ] investigate failing CI on md-edit @md-edit
+[ ] review open PR comments
 ```
 
 Then you decide what you are actually starting now:
@@ -32,10 +34,12 @@ Then you decide what you are actually starting now:
 wid now investigate failing CI on md-edit @md-edit @ci
 ```
 
-That item becomes the one active thing:
+In the Markdown log, that item becomes the one active thing:
 
 ```text
-[>] active
+[ ] tighten README wording @wid
+[>] investigate failing CI on md-edit @md-edit @ci
+[ ] review open PR comments
 ```
 
 While working, you may want to leave yourself little breadcrumbs so that future-you can re-enter the task quickly:
@@ -44,6 +48,16 @@ While working, you may want to leave yourself little breadcrumbs so that future-
 wid note failure only happens on ubuntu-latest
 wid note probably related to cache invalidation
 wid note -i
+```
+
+Those notes are appended under the selected item in the Markdown log:
+
+```text
+[ ] tighten README wording @wid
+[>] investigate failing CI on md-edit @md-edit @ci
+  - failure only happens on ubuntu-latest
+  - probably related to cache invalidation
+[ ] review open PR comments
 ```
 
 Later, an agent finishes another task and you need to switch. You can jump back to the latest item:
@@ -72,10 +86,12 @@ wid done
 wid done -i
 ```
 
-Done items become:
+In the Markdown log, done items become:
 
 ```text
-[x] done
+[ ] tighten README wording @wid
+[x] investigate failing CI on md-edit @md-edit @ci
+[ ] review open PR comments
 ```
 
 `wid done -i` opens a picker for all items. Use `Space` to toggle `[ ]` and `[x]`, then `Enter` to confirm.
@@ -112,7 +128,9 @@ That prints the whole log so you can see your current flow, including indented `
 
 The same log view also appears automatically after successful state-changing commands, so you can immediately see how your focus shifted without typing `wid` again.
 
-If you are exploring the CLI from an agent or a script, start with:
+## For Agents
+
+If an agent or script is exploring the CLI, start with:
 
 ```bash
 wid --help
