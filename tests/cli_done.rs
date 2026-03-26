@@ -396,9 +396,14 @@ fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 [ ] 11:32 oldest item".to_string(),
-            "2026-03-24 [x] 11:48 already done".to_string(),
-            "2026-03-25 [ ] 09:15 newest unfinished".to_string(),
+            "2026-03-24 Tue".to_string(),
+            "─".repeat("2026-03-24 Tue".chars().count()),
+            "□ oldest item  11:32".to_string(),
+            "☑ already done  11:48".to_string(),
+            " ".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ newest unfinished  09:15".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -421,9 +426,14 @@ fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 [>] 11:32 current task".to_string(),
-            "2026-03-24 [ ] 11:48 pending task".to_string(),
-            "2026-03-25 [x] 09:15 done item".to_string(),
+            "2026-03-24 Tue".to_string(),
+            "─".repeat("2026-03-24 Tue".chars().count()),
+            "◉ current task  11:32".to_string(),
+            "□ pending task  11:48".to_string(),
+            " ".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "☑ done item  09:15".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -446,8 +456,13 @@ fn done_command_interactive_shows_notes_under_entries() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 [>] 11:32 current task\n  · first note\n  · second note".to_string(),
-            "2026-03-24 [ ] 11:48 pending task\n  · follow-up detail".to_string(),
+            "2026-03-24 Tue".to_string(),
+            "─".repeat("2026-03-24 Tue".chars().count()),
+            "◉ current task  11:32".to_string(),
+            "  · first note".to_string(),
+            "  · second note".to_string(),
+            "□ pending task  11:48".to_string(),
+            "  · follow-up detail".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -718,7 +733,42 @@ impl done_picker::DoneStatePicker for FakeDonePicker {
         selected: usize,
     ) -> anyhow::Result<Option<Vec<model::EntryState>>> {
         self.calls += 1;
-        self.items = entries.iter().map(model::LogEntry::display_label).collect();
+        self.items = entries
+            .iter()
+            .enumerate()
+            .flat_map(|(index, entry)| {
+                let mut rows = Vec::new();
+                if index == 0 || entries[index - 1].date != entry.date {
+                    if index > 0 {
+                        rows.push(" ".to_string());
+                    }
+                    let heading = show_command::render_day_heading(&entry.date);
+                    rows.push(heading.clone());
+                    rows.push("─".repeat(heading.chars().count()));
+                }
+                rows.extend(
+                    entry
+                        .display_label()
+                        .lines()
+                        .map(|line| {
+                            if let Some((_, rest)) = line.split_once(' ')
+                                && rest.starts_with("[")
+                            {
+                                let summary =
+                                    show_command::render_entry_summary(&entry.summary, &entry.tags);
+                                return format!(
+                                    "{} {}  {}",
+                                    entry.state.display_marker(),
+                                    summary,
+                                    entry.time
+                                );
+                            }
+                            line.to_string()
+                        }),
+                );
+                rows
+            })
+            .collect();
         self.default_selected = Some(selected);
         Ok(self.result.clone())
     }

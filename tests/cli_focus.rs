@@ -104,9 +104,14 @@ fn focus_interactive_lists_only_pending_entries() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 [>] 11:32 current task".to_string(),
-            "2026-03-24 [ ] 11:48 first pending".to_string(),
-            "2026-03-25 [ ] 09:15 second pending".to_string(),
+            "2026-03-24 Tue".to_string(),
+            "─".repeat("2026-03-24 Tue".chars().count()),
+            "◉ current task  11:32".to_string(),
+            "□ first pending  11:48".to_string(),
+            " ".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ second pending  09:15".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -129,9 +134,17 @@ fn focus_interactive_shows_notes_under_each_focusable_item() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-24 [>] 11:32 current task\n  · current note".to_string(),
-            "2026-03-24 [ ] 11:48 first pending\n  · pending note".to_string(),
-            "2026-03-25 [ ] 09:15 second pending\n  · another pending note".to_string(),
+            "2026-03-24 Tue".to_string(),
+            "─".repeat("2026-03-24 Tue".chars().count()),
+            "◉ current task  11:32".to_string(),
+            "  · current note".to_string(),
+            "□ first pending  11:48".to_string(),
+            "  · pending note".to_string(),
+            " ".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ second pending  09:15".to_string(),
+            "  · another pending note".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -297,18 +310,34 @@ impl FakePicker {
 }
 
 impl done_picker::Picker for FakePicker {
-    fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
+    fn pick<T: model::PickerItem + model::GroupedPickerItem>(
+        &mut self,
+        entries: &[T],
+    ) -> anyhow::Result<Option<usize>> {
         self.pick_with_selected(entries, 0)
     }
 
-    fn pick_with_selected<T: model::PickerItem>(
+    fn pick_with_selected<T: model::PickerItem + model::GroupedPickerItem>(
         &mut self,
         entries: &[T],
         selected: usize,
     ) -> anyhow::Result<Option<usize>> {
         self.items = entries
             .iter()
-            .map(model::PickerItem::display_label)
+            .enumerate()
+            .flat_map(|(index, entry)| {
+                let mut rows = Vec::new();
+                if index == 0 || entries[index - 1].group_date() != entry.group_date() {
+                    if index > 0 {
+                        rows.push(" ".to_string());
+                    }
+                    let heading = show_command::render_day_heading(entry.group_date());
+                    rows.push(heading.clone());
+                    rows.push("─".repeat(heading.chars().count()));
+                }
+                rows.extend(entry.grouped_display_label().lines().map(str::to_string));
+                rows
+            })
             .collect();
         self.default_selected = Some(selected);
         Ok(self.result)

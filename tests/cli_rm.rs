@@ -311,7 +311,10 @@ impl FakePicker {
 }
 
 impl done_picker::Picker for FakePicker {
-    fn pick<T: model::PickerItem>(&mut self, _entries: &[T]) -> anyhow::Result<Option<usize>> {
+    fn pick<T: model::PickerItem + model::GroupedPickerItem>(
+        &mut self,
+        _entries: &[T],
+    ) -> anyhow::Result<Option<usize>> {
         Ok(self.result)
     }
 }

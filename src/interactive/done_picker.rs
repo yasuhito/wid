@@ -14,12 +14,12 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Wid
 use ratatui::{Frame, Terminal};
 
 use crate::commands::show::{render_day_heading, render_day_separator, render_entry_summary};
-use crate::log::model::{EntryState, LogEntry, PickerItem};
+use crate::log::model::{EntryState, GroupedPickerItem, LogEntry, PickerItem};
 
 pub trait Picker {
-    fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>>;
+    fn pick<T: PickerItem + GroupedPickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>>;
 
-    fn pick_with_selected<T: PickerItem>(
+    fn pick_with_selected<T: PickerItem + GroupedPickerItem>(
         &mut self,
         entries: &[T],
         _selected: usize,
@@ -157,11 +157,11 @@ struct GroupedPickerRow {
 }
 
 impl Picker for TerminalPicker {
-    fn pick<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
+    fn pick<T: PickerItem + GroupedPickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
         self.pick_with_selected(entries, 0)
     }
 
-    fn pick_with_selected<T: PickerItem>(
+    fn pick_with_selected<T: PickerItem + GroupedPickerItem>(
         &mut self,
         entries: &[T],
         selected: usize,
@@ -170,11 +170,12 @@ impl Picker for TerminalPicker {
             return Ok(None);
         }
 
+        let rows = build_grouped_rows(entries);
         let anchor_row = cursor::position()?.1;
         let clear_area = panel_area(
             Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
             anchor_row,
-            picker_content_lines(entries),
+            grouped_picker_content_lines(&rows),
             PickerMode::Browse,
         );
         terminal::enable_raw_mode()?;
@@ -188,15 +189,7 @@ impl Picker for TerminalPicker {
         state.selected = selected.min(entries.len().saturating_sub(1));
 
         loop {
-            terminal.draw(|frame| {
-                render_frame(
-                    frame,
-                    entries,
-                    state.selected(),
-                    PickerMode::Browse,
-                    anchor_row,
-                )
-            })?;
+            terminal.draw(|frame| render_grouped_frame(frame, &rows, state.selected(), anchor_row))?;
 
             if let Event::Key(key) = event::read()? {
                 match state.handle_key(key) {
@@ -219,7 +212,7 @@ impl GroupedLogEntryPicker for TerminalPicker {
             return Ok(None);
         }
 
-        let rows = build_grouped_entry_rows(entries);
+        let rows = build_grouped_rows(entries);
         let anchor_row = cursor::position()?.1;
         let clear_area = panel_area(
             Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
@@ -264,10 +257,12 @@ impl TerminalPicker {
         }
 
         let anchor_row = cursor::position()?.1;
+        let initial_states: Vec<EntryState> = entries.iter().map(|entry| entry.state).collect();
+        let rows = build_grouped_done_rows(entries, &initial_states);
         let clear_area = panel_area(
             Rect::new(0, 0, terminal::size()?.0, terminal::size()?.1),
             anchor_row,
-            entries.len(),
+            grouped_picker_content_lines(&rows),
             PickerMode::Browse,
         );
         terminal::enable_raw_mode()?;
@@ -277,7 +272,7 @@ impl TerminalPicker {
 
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
-        let mut state = DonePickerState::new(entries.iter().map(|entry| entry.state).collect());
+        let mut state = DonePickerState::new(initial_states);
         state.selected = selected.min(entries.len().saturating_sub(1));
 
         loop {
@@ -295,17 +290,21 @@ impl TerminalPicker {
         }
     }
 
-    pub fn pick_for_delete<T: PickerItem>(&mut self, entries: &[T]) -> Result<Option<usize>> {
+    pub fn pick_for_delete<T: PickerItem + GroupedPickerItem>(
+        &mut self,
+        entries: &[T],
+    ) -> Result<Option<usize>> {
         if entries.is_empty() {
             return Ok(None);
         }
 
         let anchor_row = cursor::position()?.1;
         let terminal_size = terminal::size()?;
+        let rows = build_grouped_rows(entries);
         let clear_area = panel_area(
             Rect::new(0, 0, terminal_size.0, terminal_size.1),
             anchor_row,
-            entries.len(),
+            grouped_picker_content_lines(&rows),
             PickerMode::ConfirmDelete,
         );
         terminal::enable_raw_mode()?;
@@ -319,8 +318,9 @@ impl TerminalPicker {
         let mut mode = PickerMode::Browse;
 
         loop {
-            terminal
-                .draw(|frame| render_frame(frame, entries, state.selected(), mode, anchor_row))?;
+            terminal.draw(|frame| {
+                render_grouped_delete_frame(frame, &rows, entries, state.selected(), mode, anchor_row)
+            })?;
 
             if let Event::Key(key) = event::read()? {
                 match mode {
@@ -381,17 +381,55 @@ impl PickerTheme {
     }
 }
 
-fn render_frame<T: PickerItem>(
+fn render_done_frame(
     frame: &mut Frame,
-    entries: &[T],
+    entries: &[LogEntry],
+    states: &[EntryState],
     selected: usize,
+    anchor_row: u16,
+) {
+    let rows = build_grouped_done_rows(entries, states);
+    let area = panel_area(
+        frame.area(),
+        anchor_row,
+        grouped_picker_content_lines(&rows),
+        PickerMode::Browse,
+    );
+    ClearWidget.render(area, frame.buffer_mut());
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .split(area);
+
+    let theme = PickerTheme::omarchy();
+
+    Paragraph::new("Toggle done state:")
+        .style(theme.title)
+        .render(chunks[0], frame.buffer_mut());
+
+    let body = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(chunks[1]);
+
+    render_grouped_list(frame, body[0], &rows, selected, theme);
+    Paragraph::new("j/Down next, k/Up previous, Space toggle, Enter confirm, q/Esc cancel")
+        .style(theme.footer)
+        .render(body[1], frame.buffer_mut());
+}
+
+fn render_grouped_delete_frame<T: PickerItem + GroupedPickerItem>(
+    frame: &mut Frame,
+    rows: &[GroupedPickerRow],
+    entries: &[T],
+    selected_entry: usize,
     mode: PickerMode,
     anchor_row: u16,
 ) {
     let area = panel_area(
         frame.area(),
         anchor_row,
-        picker_content_lines(entries),
+        grouped_picker_content_lines(rows),
         mode,
     );
     ClearWidget.render(area, frame.buffer_mut());
@@ -412,63 +450,27 @@ fn render_frame<T: PickerItem>(
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Min(1), Constraint::Length(1)])
                 .split(chunks[1]);
-            render_list(frame, body[0], entries, selected, theme);
+            render_grouped_list(frame, body[0], rows, selected_entry, theme);
             Paragraph::new(footer_text(mode))
                 .style(theme.footer)
                 .render(body[1], frame.buffer_mut());
         }
         PickerMode::ConfirmDelete => {
-            let list_area = Rect::new(
-                chunks[1].x,
-                chunks[1].y,
-                chunks[1].width,
-                chunks[1].height.saturating_sub(1),
+            let body = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(1), Constraint::Length(1)])
+                .split(chunks[1]);
+            render_grouped_list(frame, body[0], rows, selected_entry, theme);
+            render_grouped_confirmation_inline(
+                frame,
+                body[0],
+                rows,
+                selected_entry,
+                entries[selected_entry].delete_prompt(),
+                theme,
             );
-            render_list(frame, list_area, entries, selected, theme);
-            render_confirmation_inline(frame, list_area, entries, selected, theme);
         }
     }
-}
-
-fn render_done_frame(
-    frame: &mut Frame,
-    entries: &[LogEntry],
-    states: &[EntryState],
-    selected: usize,
-    anchor_row: u16,
-) {
-    let labels: Vec<String> = entries
-        .iter()
-        .zip(states.iter())
-        .map(|(entry, state)| entry.display_label_with_state(*state))
-        .collect();
-    let area = panel_area(
-        frame.area(),
-        anchor_row,
-        done_picker_content_lines(entries),
-        PickerMode::Browse,
-    );
-    ClearWidget.render(area, frame.buffer_mut());
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(1)])
-        .split(area);
-
-    let theme = PickerTheme::omarchy();
-
-    Paragraph::new("Toggle done state:")
-        .style(theme.title)
-        .render(chunks[0], frame.buffer_mut());
-
-    let body = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
-        .split(chunks[1]);
-
-    render_label_list(frame, body[0], &labels, selected, theme);
-    Paragraph::new("j/Down next, k/Up previous, Space toggle, Enter confirm, q/Esc cancel")
-        .style(theme.footer)
-        .render(body[1], frame.buffer_mut());
 }
 
 fn render_grouped_frame(
@@ -530,17 +532,6 @@ fn confirm_delete_key(key: KeyEvent) -> bool {
     matches!(key.code, KeyCode::Char('y'))
 }
 
-fn render_list<T: PickerItem>(
-    frame: &mut Frame,
-    area: Rect,
-    entries: &[T],
-    selected: usize,
-    theme: PickerTheme,
-) {
-    let labels: Vec<String> = entries.iter().map(|entry| entry.display_label()).collect();
-    render_label_list(frame, area, &labels, selected, theme);
-}
-
 fn render_grouped_list(
     frame: &mut Frame,
     area: Rect,
@@ -549,10 +540,7 @@ fn render_grouped_list(
     theme: PickerTheme,
 ) {
     let labels: Vec<String> = rows.iter().map(|row| row.label.clone()).collect();
-    let selected_row = rows
-        .iter()
-        .position(|row| row.selectable_entry_index == Some(selected_entry))
-        .unwrap_or(0);
+    let selected_row = find_selected_row(rows, selected_entry);
     render_label_list(frame, area, &labels, selected_row, theme);
 }
 
@@ -597,23 +585,53 @@ fn render_label_list(
     Paragraph::new(Span::styled("▌ ", theme.accent)).render(accent_area, frame.buffer_mut());
 }
 
-fn done_picker_content_lines(entries: &[LogEntry]) -> usize {
-    entries.iter().map(LogEntry::display_line_count).sum()
-}
-
-fn picker_content_lines<T: PickerItem>(entries: &[T]) -> usize {
-    entries.iter().map(PickerItem::line_count).sum()
-}
-
 fn grouped_picker_content_lines(rows: &[GroupedPickerRow]) -> usize {
     rows.iter().map(|row| row.line_count).sum()
 }
 
-fn build_grouped_entry_rows(entries: &[LogEntry]) -> Vec<GroupedPickerRow> {
+fn find_selected_row(rows: &[GroupedPickerRow], selected_entry: usize) -> usize {
+    rows.iter()
+        .position(|row| row.selectable_entry_index == Some(selected_entry))
+        .unwrap_or(0)
+}
+
+fn build_grouped_rows<T: GroupedPickerItem>(entries: &[T]) -> Vec<GroupedPickerRow> {
     let mut rows = Vec::new();
     let mut current_date: Option<&str> = None;
 
     for (index, entry) in entries.iter().enumerate() {
+        if current_date != Some(entry.group_date()) {
+            if !rows.is_empty() {
+                rows.push(GroupedPickerRow {
+                    label: " ".to_string(),
+                    selectable_entry_index: None,
+                    line_count: 1,
+                });
+            }
+            let heading = render_day_heading(entry.group_date());
+            rows.push(GroupedPickerRow {
+                label: format!("{heading}\n{}", render_day_separator(&heading)),
+                selectable_entry_index: None,
+                line_count: 2,
+            });
+            current_date = Some(entry.group_date());
+        }
+
+        rows.push(GroupedPickerRow {
+            label: entry.grouped_display_label(),
+            selectable_entry_index: Some(index),
+            line_count: entry.grouped_line_count(),
+        });
+    }
+
+    rows
+}
+
+fn build_grouped_done_rows(entries: &[LogEntry], states: &[EntryState]) -> Vec<GroupedPickerRow> {
+    let mut rows = Vec::new();
+    let mut current_date: Option<&str> = None;
+
+    for (index, (entry, state)) in entries.iter().zip(states.iter()).enumerate() {
         if current_date != Some(entry.date.as_str()) {
             if !rows.is_empty() {
                 rows.push(GroupedPickerRow {
@@ -632,12 +650,7 @@ fn build_grouped_entry_rows(entries: &[LogEntry]) -> Vec<GroupedPickerRow> {
         }
 
         let summary = render_entry_summary(&entry.summary, &entry.tags);
-        let mut lines = vec![format!(
-            "{} {}  {}",
-            entry.state.display_marker(),
-            summary,
-            entry.time
-        )];
+        let mut lines = vec![format!("{} {}  {}", state.display_marker(), summary, entry.time)];
         lines.extend(entry.notes.iter().map(|note| crate::log::model::format_note_display(note)));
         rows.push(GroupedPickerRow {
             label: lines.join("\n"),
@@ -649,32 +662,32 @@ fn build_grouped_entry_rows(entries: &[LogEntry]) -> Vec<GroupedPickerRow> {
     rows
 }
 
-fn render_confirmation_inline(
+fn render_grouped_confirmation_inline(
     frame: &mut Frame,
     area: Rect,
-    entries: &[impl PickerItem],
-    selected: usize,
+    rows: &[GroupedPickerRow],
+    selected_entry: usize,
+    prompt: &str,
     theme: PickerTheme,
 ) {
     if area.height == 0 {
         return;
     }
 
-    let list_height = area.height;
-    let max_offset = entries.len().saturating_sub(list_height as usize);
-    let offset = selected.min(max_offset);
-    let visible = entries
-        .len()
-        .saturating_sub(offset)
-        .min(list_height as usize);
-    let confirm_y = area.y.saturating_add(visible as u16);
+    let selected_row = find_selected_row(rows, selected_entry);
+    let relative = rows
+        .iter()
+        .take(selected_row + 1)
+        .map(|row| row.line_count as u16)
+        .sum::<u16>();
+    let confirm_y = area.y.saturating_add(relative);
 
-    if confirm_y >= area.y.saturating_add(area.height) {
+    if confirm_y >= area.y.saturating_add(area.height) || area.width <= 2 {
         return;
     }
 
     let confirm_area = Rect::new(area.x + 2, confirm_y, area.width.saturating_sub(2), 1);
-    Paragraph::new(entries[selected].delete_prompt())
+    Paragraph::new(prompt)
         .style(theme.footer)
         .render(confirm_area, frame.buffer_mut());
 }
@@ -722,7 +735,7 @@ mod tests {
         bg: Color,
     }
 
-    fn render_test_surface<T: PickerItem>(
+    fn render_test_surface<T: PickerItem + GroupedPickerItem>(
         entries: &[T],
         selected: usize,
         mode: PickerMode,
@@ -730,14 +743,15 @@ mod tests {
         height: u16,
     ) -> TestSurface {
         let theme = PickerTheme::omarchy();
+        let rows_for_picker = build_grouped_rows(entries);
         let panel = panel_area(
             Rect::new(0, 0, 72, height),
             2,
-            picker_content_lines(entries),
+            grouped_picker_content_lines(&rows_for_picker),
             mode,
         );
         let top_padding = panel.y as usize;
-        let mut rows = Vec::with_capacity(top_padding + picker_content_lines(entries) + 3);
+        let mut rows = Vec::with_capacity(top_padding + grouped_picker_content_lines(&rows_for_picker) + 3);
         rows.extend((0..top_padding).map(|_| TestRow {
             text: String::new(),
             fg: Color::Reset,
@@ -748,18 +762,22 @@ mod tests {
             fg: theme.title.fg.unwrap_or(Color::Reset),
             bg: theme.title.bg.unwrap_or(Color::Reset),
         });
-        rows.extend(entries.iter().enumerate().map(|(index, entry)| {
-            let style = if index == selected {
+        let selected_row = find_selected_row(&rows_for_picker, selected);
+        rows.extend(rows_for_picker.iter().enumerate().flat_map(|(index, row)| {
+            let style = if row.selectable_entry_index == Some(selected) {
                 theme.selected
             } else {
                 theme.normal
             };
-            let prefix = if index == selected { "▌ " } else { "  " };
-            TestRow {
-                text: format!("{prefix}{}", entry.display_label()),
+            row.label.lines().map(move |line| TestRow {
+                text: if index == selected_row {
+                    format!("▌ {line}")
+                } else {
+                    format!("  {line}")
+                },
                 fg: style.fg.unwrap_or(Color::Reset),
                 bg: style.bg.unwrap_or(Color::Reset),
-            }
+            })
         }));
         let footer = match mode {
             PickerMode::Browse => footer_text(mode).to_string(),
@@ -873,7 +891,7 @@ mod tests {
 
         let rendered = render_test_surface(&entries, 1, PickerMode::Browse, 72, 8);
 
-        let selected = find_cell(&rendered, "2026-03-25 09:15 selected");
+        let selected = find_cell(&rendered, "selected  09:15");
         assert_eq!(selected.fg, Color::Black);
         assert!(selected.bg != Color::Reset);
     }
@@ -903,10 +921,10 @@ mod tests {
         let selected_index = rendered
             .rows
             .iter()
-            .position(|row| row.text.contains("2026-03-25 [ ] 09:15 selected"))
+            .position(|row| row.text.contains("□ selected  09:15"))
             .unwrap();
         assert_eq!(confirm_index, selected_index + 1);
-        let selected = find_cell(&rendered, "2026-03-25 [ ] 09:15 selected");
+        let selected = find_cell(&rendered, "□ selected  09:15");
         assert_eq!(selected.fg, Color::Black);
         assert!(selected.bg != Color::Reset);
     }
@@ -965,7 +983,7 @@ mod tests {
             },
         ];
 
-        let rows = build_grouped_entry_rows(&entries);
+        let rows = build_grouped_rows(&entries);
 
         assert_eq!(rows[2].label, " ");
         assert_eq!(rows[2].line_count, 1);

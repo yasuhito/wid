@@ -112,6 +112,16 @@ pub trait PickerItem {
     }
 }
 
+pub trait GroupedPickerItem {
+    fn group_date(&self) -> &str;
+
+    fn grouped_display_label(&self) -> String;
+
+    fn grouped_line_count(&self) -> usize {
+        self.grouped_display_label().lines().count()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnfinishedEntry {
     pub date: String,
@@ -137,6 +147,20 @@ impl UnfinishedEntry {
 impl PickerItem for UnfinishedEntry {
     fn display_label(&self) -> String {
         self.display_label()
+    }
+}
+
+impl GroupedPickerItem for UnfinishedEntry {
+    fn group_date(&self) -> &str {
+        &self.date
+    }
+
+    fn grouped_display_label(&self) -> String {
+        format!(
+            "{}  {}",
+            format_summary_with_tags(&self.summary, &self.tags),
+            self.time
+        )
     }
 }
 
@@ -177,6 +201,27 @@ impl PickerItem for FocusEntry {
     }
 
     fn line_count(&self) -> usize {
+        self.display_line_count()
+    }
+}
+
+impl GroupedPickerItem for FocusEntry {
+    fn group_date(&self) -> &str {
+        &self.date
+    }
+
+    fn grouped_display_label(&self) -> String {
+        let mut lines = vec![format!(
+            "{} {}  {}",
+            self.state.display_marker(),
+            format_summary_with_tags(&self.summary, &self.tags),
+            self.time
+        )];
+        lines.extend(self.notes.iter().map(|note| format_note_display(note)));
+        lines.join("\n")
+    }
+
+    fn grouped_line_count(&self) -> usize {
         self.display_line_count()
     }
 }
@@ -237,6 +282,27 @@ impl PickerItem for LogEntry {
     }
 }
 
+impl GroupedPickerItem for LogEntry {
+    fn group_date(&self) -> &str {
+        &self.date
+    }
+
+    fn grouped_display_label(&self) -> String {
+        let mut lines = vec![format!(
+            "{} {}  {}",
+            self.state.display_marker(),
+            format_summary_with_tags(&self.summary, &self.tags),
+            self.time
+        )];
+        lines.extend(self.notes.iter().map(|note| format_note_display(note)));
+        lines.join("\n")
+    }
+
+    fn grouped_line_count(&self) -> usize {
+        self.display_line_count()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemovableKind {
     Entry,
@@ -282,6 +348,24 @@ impl PickerItem for RemovableTarget {
         match self.kind {
             RemovableKind::Entry => "Delete selected entry? [y/N]",
             RemovableKind::Note => "Delete selected note? [y/N]",
+        }
+    }
+}
+
+impl GroupedPickerItem for RemovableTarget {
+    fn group_date(&self) -> &str {
+        &self.date
+    }
+
+    fn grouped_display_label(&self) -> String {
+        match self.kind {
+            RemovableKind::Entry => format!(
+                "{} {}  {}",
+                self.state.display_marker(),
+                format_summary_with_tags(&self.summary, &self.tags),
+                self.time
+            ),
+            RemovableKind::Note => format_note_display(self.note_text.as_deref().unwrap_or_default()),
         }
     }
 }

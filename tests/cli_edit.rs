@@ -118,9 +118,11 @@ fn edit_interactive_updates_selected_entry_only() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-25 [ ] 08:01 first item".to_string(),
-            "2026-03-25 [>] 08:12 active item".to_string(),
-            "2026-03-25 [x] 08:30 done item".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "□ first item  08:01".to_string(),
+            "◉ active item  08:12".to_string(),
+            "☑ done item  08:30".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(1));
@@ -149,10 +151,12 @@ fn edit_interactive_updates_selected_note_only() {
     assert_eq!(
         picker.items,
         vec![
-            "2026-03-25 [>] 08:12 active item".to_string(),
+            "Yesterday · 2026-03-25 Wed".to_string(),
+            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            "◉ active item  08:12".to_string(),
             "  · first note".to_string(),
             "  · second note".to_string(),
-            "2026-03-25 [ ] 08:30 later item".to_string(),
+            "□ later item  08:30".to_string(),
         ]
     );
     assert_eq!(picker.default_selected, Some(0));
@@ -312,18 +316,34 @@ impl FakePicker {
 }
 
 impl done_picker::Picker for FakePicker {
-    fn pick<T: model::PickerItem>(&mut self, entries: &[T]) -> anyhow::Result<Option<usize>> {
+    fn pick<T: model::PickerItem + model::GroupedPickerItem>(
+        &mut self,
+        entries: &[T],
+    ) -> anyhow::Result<Option<usize>> {
         self.pick_with_selected(entries, 0)
     }
 
-    fn pick_with_selected<T: model::PickerItem>(
+    fn pick_with_selected<T: model::PickerItem + model::GroupedPickerItem>(
         &mut self,
         entries: &[T],
         selected: usize,
     ) -> anyhow::Result<Option<usize>> {
         self.items = entries
             .iter()
-            .map(model::PickerItem::display_label)
+            .enumerate()
+            .flat_map(|(index, entry)| {
+                let mut rows = Vec::new();
+                if index == 0 || entries[index - 1].group_date() != entry.group_date() {
+                    if index > 0 {
+                        rows.push(" ".to_string());
+                    }
+                    let heading = show_command::render_day_heading(entry.group_date());
+                    rows.push(heading.clone());
+                    rows.push("─".repeat(heading.chars().count()));
+                }
+                rows.extend(entry.grouped_display_label().lines().map(str::to_string));
+                rows
+            })
             .collect();
         self.default_selected = Some(selected);
         Ok(self.result)
@@ -333,7 +353,10 @@ impl done_picker::Picker for FakePicker {
 struct NoopPicker;
 
 impl done_picker::Picker for NoopPicker {
-    fn pick<T: model::PickerItem>(&mut self, _entries: &[T]) -> anyhow::Result<Option<usize>> {
+    fn pick<T: model::PickerItem + model::GroupedPickerItem>(
+        &mut self,
+        _entries: &[T],
+    ) -> anyhow::Result<Option<usize>> {
         panic!("picker should not be used")
     }
 }
