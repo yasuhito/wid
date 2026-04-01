@@ -82,14 +82,22 @@ impl PickerState {
     pub fn handle_key(&mut self, key: KeyEvent) -> PickerOutcome {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                if self.selected + 1 < self.len {
-                    self.selected += 1;
+                if self.len > 0 {
+                    if self.selected + 1 < self.len {
+                        self.selected += 1;
+                    } else {
+                        self.selected = 0;
+                    }
                 }
                 PickerOutcome::Continue
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
+                if self.len > 0 {
+                    if self.selected > 0 {
+                        self.selected -= 1;
+                    } else {
+                        self.selected = self.len - 1;
+                    }
                 }
                 PickerOutcome::Continue
             }
@@ -119,14 +127,22 @@ impl DonePickerState {
     pub fn handle_key(&mut self, key: KeyEvent) -> DonePickerOutcome {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                if self.selected + 1 < self.states.len() {
-                    self.selected += 1;
+                if !self.states.is_empty() {
+                    if self.selected + 1 < self.states.len() {
+                        self.selected += 1;
+                    } else {
+                        self.selected = 0;
+                    }
                 }
                 DonePickerOutcome::Continue
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
+                if !self.states.is_empty() {
+                    if self.selected > 0 {
+                        self.selected -= 1;
+                    } else {
+                        self.selected = self.states.len() - 1;
+                    }
                 }
                 DonePickerOutcome::Continue
             }

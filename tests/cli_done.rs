@@ -284,6 +284,36 @@ fn done_interactive_picker_moves_down_and_confirms_selection() {
 }
 
 #[test]
+fn picker_wraps_from_top_to_bottom_and_back() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut picker = interactive::done_picker::PickerState::new(3);
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 2);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 0);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 2);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+        interactive::done_picker::PickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 0);
+}
+
+#[test]
 fn done_interactive_picker_toggles_selected_entry_on_space() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -318,6 +348,41 @@ fn done_interactive_picker_toggles_selected_entry_on_space() {
         interactive::done_picker::DonePickerOutcome::Continue
     );
     assert_eq!(picker.states()[2], model::EntryState::Pending);
+}
+
+#[test]
+fn done_picker_wraps_from_top_to_bottom_and_back() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut picker = interactive::done_picker::DonePickerState::new(vec![
+        model::EntryState::Pending,
+        model::EntryState::Active,
+        model::EntryState::Done,
+    ]);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 2);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 0);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 2);
+
+    assert_eq!(
+        picker.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+        interactive::done_picker::DonePickerOutcome::Continue
+    );
+    assert_eq!(picker.selected(), 0);
 }
 
 #[test]
