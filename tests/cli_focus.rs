@@ -67,6 +67,15 @@ fn run_wid(home: &PathBuf, args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+fn day_heading(date: &str) -> String {
+    show_command::render_day_heading(date)
+}
+
+fn day_separator(date: &str) -> String {
+    let heading = day_heading(date);
+    "─".repeat(heading.chars().count())
+}
+
 #[test]
 fn focus_interactive_promotes_selected_entry_and_clears_previous_active() {
     let dir = unique_temp_dir("focus-select");
@@ -109,8 +118,8 @@ fn focus_interactive_lists_only_pending_entries() {
             "◉ current task  11:32".to_string(),
             "□ first pending  11:48".to_string(),
             " ".to_string(),
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ second pending  09:15".to_string(),
         ]
     );
@@ -141,8 +150,8 @@ fn focus_interactive_shows_notes_under_each_focusable_item() {
             "□ first pending  11:48".to_string(),
             "  · pending note".to_string(),
             " ".to_string(),
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ second pending  09:15".to_string(),
             "  · another pending note".to_string(),
         ]

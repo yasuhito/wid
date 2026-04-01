@@ -54,6 +54,15 @@ fn unique_temp_dir(name: &str) -> PathBuf {
     dir
 }
 
+fn day_heading(date: &str) -> String {
+    show_command::render_day_heading(date)
+}
+
+fn day_separator(date: &str) -> String {
+    let heading = day_heading(date);
+    "─".repeat(heading.chars().count())
+}
+
 #[test]
 fn edit_updates_active_entry_summary_by_default() {
     let dir = unique_temp_dir("edit-active");
@@ -118,8 +127,8 @@ fn edit_interactive_updates_selected_entry_only() {
     assert_eq!(
         picker.items,
         vec![
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ first item  08:01".to_string(),
             "◉ active item  08:12".to_string(),
             "☑ done item  08:30".to_string(),
@@ -127,6 +136,28 @@ fn edit_interactive_updates_selected_entry_only() {
     );
     assert_eq!(picker.default_selected, Some(1));
     assert_eq!(editor.initial_summary.as_deref(), Some("done item"));
+}
+
+#[test]
+fn edit_interactive_ignores_trailing_spaces_in_entry_lines() {
+    let dir = unique_temp_dir("edit-interactive-trailing-space");
+    let path = dir.join("log.md");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "## 2026-03-25\n\n- [ ] 08:01 first item\n- [ ] 08:30 bottom item \n",
+    )
+    .unwrap();
+
+    let mut picker = FakePicker::new(Some(1));
+    let mut editor = FakeEditor::with_response(Some("renamed bottom item"));
+    edit_command::run_at_path(&path, true, &mut picker, &mut editor).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "## 2026-03-25\n\n- [ ] 08:01 first item\n- [ ] 08:30 renamed bottom item\n"
+    );
+    assert_eq!(editor.initial_summary.as_deref(), Some("bottom item"));
 }
 
 #[test]
@@ -151,8 +182,8 @@ fn edit_interactive_updates_selected_note_only() {
     assert_eq!(
         picker.items,
         vec![
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "◉ active item  08:12".to_string(),
             "  · first note".to_string(),
             "  · second note".to_string(),

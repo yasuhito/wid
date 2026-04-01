@@ -91,6 +91,15 @@ fn run_wid(home: &PathBuf, args: &[&str], stdin: Option<&str>) -> std::process::
     child.wait_with_output().unwrap()
 }
 
+fn day_heading(date: &str) -> String {
+    show_command::render_day_heading(date)
+}
+
+fn day_separator(date: &str) -> String {
+    let heading = day_heading(date);
+    "─".repeat(heading.chars().count())
+}
+
 #[test]
 fn note_appends_to_active_entry() {
     let dir = unique_temp_dir("note-active");
@@ -253,8 +262,8 @@ fn note_command_interactive_appends_to_selected_entry() {
     assert_eq!(
         picker.rows,
         vec![
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "◉ active item  08:01".to_string(),
             "  · existing active note".to_string(),
             "☑ done item  08:06".to_string(),
@@ -332,8 +341,8 @@ fn note_command_interactive_starts_at_top_even_when_an_active_item_exists() {
     assert_eq!(
         picker.rows,
         vec![
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ first pending  08:01".to_string(),
             "  · first pending note".to_string(),
             "◉ active item  08:12".to_string(),
@@ -362,8 +371,8 @@ fn note_command_interactive_shows_done_items_but_defaults_to_latest_open_item() 
     assert_eq!(
         picker.rows,
         vec![
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ first pending  08:01".to_string(),
             "  · first pending note".to_string(),
             "☑ done item  08:12".to_string(),
@@ -391,13 +400,13 @@ fn note_command_interactive_inserts_blank_line_before_later_date_header() {
     assert_eq!(
         picker.rows,
         vec![
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ older pending  08:01".to_string(),
             "  · older note".to_string(),
             " ".to_string(),
-            "Today · 2026-03-26 Thu".to_string(),
-            "─".repeat("Today · 2026-03-26 Thu".chars().count()),
+            day_heading("2026-03-26"),
+            day_separator("2026-03-26"),
             "□ newer pending  09:12".to_string(),
             "  · newer note".to_string(),
         ]

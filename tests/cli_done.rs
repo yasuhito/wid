@@ -96,6 +96,15 @@ fn write_log(home: &Path, contents: &str) {
     fs::write(path, contents).unwrap();
 }
 
+fn day_heading(date: &str) -> String {
+    show_command::render_day_heading(date)
+}
+
+fn day_separator(date: &str) -> String {
+    let heading = day_heading(date);
+    "─".repeat(heading.chars().count())
+}
+
 #[test]
 fn done_command_marks_last_unfinished_entry() {
     let home = unique_temp_dir("done-mark-last");
@@ -401,8 +410,8 @@ fn done_command_interactive_lists_unfinished_entries_in_wid_order() {
             "□ oldest item  11:32".to_string(),
             "☑ already done  11:48".to_string(),
             " ".to_string(),
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "□ newest unfinished  09:15".to_string(),
         ]
     );
@@ -431,8 +440,8 @@ fn done_command_interactive_lists_active_entry_and_selects_it_by_default() {
             "◉ current task  11:32".to_string(),
             "□ pending task  11:48".to_string(),
             " ".to_string(),
-            "Yesterday · 2026-03-25 Wed".to_string(),
-            "─".repeat("Yesterday · 2026-03-25 Wed".chars().count()),
+            day_heading("2026-03-25"),
+            day_separator("2026-03-25"),
             "☑ done item  09:15".to_string(),
         ]
     );

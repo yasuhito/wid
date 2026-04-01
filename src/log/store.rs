@@ -824,7 +824,8 @@ fn collect_removable_targets_from_contents(contents: &str) -> Vec<RemovableTarge
     let mut entry_ordinal = 0usize;
     let mut note_ordinal = 0usize;
 
-    for line in contents.lines() {
+    for raw_line in contents.lines() {
+        let line = raw_line.trim_end();
         if let Some(date) = parse_day_heading(line) {
             current_date = Some(date.to_string());
             current_entry = None;

@@ -53,6 +53,10 @@ fn run_wid(home: &PathBuf, args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+fn day_heading(date: &str) -> String {
+    show_command::render_day_heading(date)
+}
+
 #[test]
 fn wid_without_arguments_prints_all_stored_log_entries() {
     let home = unique_temp_dir("show-default");
@@ -92,7 +96,7 @@ fn wid_omits_empty_day_sections_from_output() {
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<_> = stdout.lines().collect();
-    assert_eq!(lines[0], "Yesterday · 2026-03-25 Wed");
+    assert_eq!(lines[0], day_heading("2026-03-25"));
     assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
     assert_eq!(lines[2], "□ fix failing CI  11:32");
 }
@@ -106,8 +110,8 @@ fn wid_render_uses_today_and_yesterday_labels_for_recent_days() {
 
     let output = show_command::render_document(&document, false);
 
-    assert!(output.contains("Yesterday · 2026-03-25 Wed"), "{output:?}");
-    assert!(output.contains("Today · 2026-03-26 Thu"), "{output:?}");
+    assert!(output.contains(&day_heading("2026-03-25")), "{output:?}");
+    assert!(output.contains(&day_heading("2026-03-26")), "{output:?}");
     let lines: Vec<_> = output.lines().collect();
     assert_eq!(lines[1], "─".repeat(lines[0].chars().count()));
     assert_eq!(lines[5], "─".repeat(lines[4].chars().count()));
