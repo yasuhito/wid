@@ -6,6 +6,7 @@ use crate::commands::tag::TagAction;
 #[derive(Debug, Parser)]
 #[command(
     name = "wid",
+    version,
     about = "Track what you're doing in a global markdown log",
     after_help = "\
 Examples:

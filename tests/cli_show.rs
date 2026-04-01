@@ -53,6 +53,16 @@ fn run_wid(home: &PathBuf, args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+#[test]
+fn wid_version_prints_crate_version() {
+    let output = Command::new(wid_bin()).arg("--version").output().unwrap();
+
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), format!("wid {}", env!("CARGO_PKG_VERSION")));
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+}
+
 fn day_heading(date: &str) -> String {
     show_command::render_day_heading(date)
 }
